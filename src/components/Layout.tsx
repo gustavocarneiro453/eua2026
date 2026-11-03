@@ -19,6 +19,9 @@ export function LiveIndicator() {
     : feed.stale ? [t('live.stale'), 'text-amber-400', false]
     : feed.status === 'error' ? [t('live.offline'), 'text-amber-400', false]
     : feed.status === 'loading' ? [t('live.loading'), 'text-muted', true]
+    : feed.snapshot?.sourceState === 'waiting' ? [t('live.waiting'), 'text-muted', false]
+    : feed.snapshot?.sourceState === 'stale' ? [t('live.stale'), 'text-amber-400', false]
+    : feed.snapshot?.sourceState === 'final' ? [t('live.final'), 'text-success', false]
     : [t('live.live'), 'text-live', true]
   return (
     <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em]" role="status">

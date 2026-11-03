@@ -22,21 +22,22 @@ function useSegments() {
   const { t } = useI18n()
   const { list, feed } = useRaces()
   const has = !!feed.snapshot
+  const calls = !!feed.snapshot?.callsSupported
   const party = (p: Party, n: number | undefined, op = 1): Segment => ({ key: p, label: t(`party.${p}`), value: n ?? 0, color: `var(--color-${p === 'REP' ? 'rep' : p === 'DEM' ? 'dem' : 'ind'})`, opacity: op })
   const s = tally(list, 'senate'), h = tally(list, 'house'), g = tally(list, 'governor')
-  const pending = (n: number): Segment => ({ key: 'pending', label: has ? t('sum.undecided') : t('sum.onBallot'), value: n, color: '#2A3850' })
+  const pending = (n: number): Segment => ({ key: 'pending', label: calls ? t('sum.undecided') : t('sum.onBallot'), value: n, color: '#2A3850' })
   const senate: Segment[] = [
     { ...party('DEM', SENATE_NOT_UP.DEM, 0.45), key: 'dNotUp', label: `${t('party.DEM')} · ${t('sum.notUp')}` },
-    ...(has ? [{ ...party('DEM', s.won.DEM), key: 'dWon', label: `${t('party.DEM')} · ${t('sum.projected')}` }] : []),
-    ...(has && s.won.IND ? [{ ...party('IND', s.won.IND), key: 'iWon' }] : []),
+    ...(calls ? [{ ...party('DEM', s.won.DEM), key: 'dWon', label: `${t('party.DEM')} · ${t('sum.projected')}` }] : []),
+    ...(calls && s.won.IND ? [{ ...party('IND', s.won.IND), key: 'iWon' }] : []),
     pending(s.undecided),
-    ...(has ? [{ ...party('REP', s.won.REP), key: 'rWon', label: `${t('party.REP')} · ${t('sum.projected')}` }] : []),
+    ...(calls ? [{ ...party('REP', s.won.REP), key: 'rWon', label: `${t('party.REP')} · ${t('sum.projected')}` }] : []),
     { ...party('REP', SENATE_NOT_UP.REP, 0.45), key: 'rNotUp', label: `${t('party.REP')} · ${t('sum.notUp')}` },
   ].filter((x) => x.value > 0)
-  const house: Segment[] = has
+  const house: Segment[] = calls
     ? [party('DEM', h.won.DEM), pending(h.undecided), party('REP', h.won.REP)].filter((x) => x.value > 0)
     : [{ key: 'pending', label: t('sum.awaiting'), value: HOUSE.total, color: '#2A3850' }]
-  return { senate, house, s, h, g, has }
+  return { senate, house, s, h, g, has, calls }
 }
 
 function SummaryCard({ title, term, sub, children, to }: { title: string; term: TermKey; sub: string; children: React.ReactNode; to: string }) {
@@ -55,9 +56,10 @@ function SummaryCard({ title, term, sub, children, to }: { title: string; term: 
 export default function Overview() {
   const { t, num, longDate, glossary } = useI18n()
   const { map, coverage, feed } = useRaces()
-  const { senate, house, s, h, g, has } = useSegments()
+  const { senate, house, s, h, g, has, calls } = useSegments()
   const days = daysToElection(ELECTION_DATE)
-  const dash = (n: number | undefined) => (has ? num(n ?? 0) : '—')
+  // Projections: '—' unless the source can declare winners (missing is never shown as zero)
+  const dash = (n: number | undefined) => (calls ? num(n ?? 0) : '—')
 
   return (
     <>
@@ -92,7 +94,7 @@ export default function Overview() {
             <div className="grid grid-cols-3 gap-3 border-t border-line pt-3">
               <Big value={dash(s.won.DEM)} label={`${t('party.short.DEM')} · ${t('sum.projected')}`} />
               <Big value={dash(s.won.REP)} label={`${t('party.short.REP')} · ${t('sum.projected')}`} />
-              <Big value={has ? num(s.undecided) : '—'} label={t('sum.undecided')} />
+              {calls ? <Big value={num(s.undecided)} label={t('sum.undecided')} /> : <Big value={has ? num(s.withData) : '—'} label={t('sum.withData')} />}
             </div>
             <p className="text-[11px] text-muted">{t('sum.before')}: {t('party.REP')} {SENATE.before.REP} · {t('party.DEM')} {SENATE.before.DEM} · {t('party.IND')} {SENATE.before.IND}. {t('sum.tiebreak')}</p>
           </SummaryCard>
@@ -116,7 +118,7 @@ export default function Overview() {
             <div className="grid grid-cols-3 gap-3 border-t border-line pt-3">
               <Big value={dash(g.won.DEM)} label={`${t('party.short.DEM')} · ${t('sum.projected')}`} />
               <Big value={dash(g.won.REP)} label={`${t('party.short.REP')} · ${t('sum.projected')}`} />
-              <Big value={has ? num(g.undecided) : '—'} label={t('sum.undecided')} />
+              {calls ? <Big value={num(g.undecided)} label={t('sum.undecided')} /> : <Big value={has ? num(g.withData) : '—'} label={t('sum.withData')} />}
             </div>
             <p className="text-[11px] text-muted">{t('sum.govNote')}</p>
           </SummaryCard>
@@ -145,7 +147,8 @@ export default function Overview() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {SENATE_SEATS.slice().sort((a, b) => {
               const ra = map.get(raceKey('senate', a.state, null, a.special)), rb = map.get(raceKey('senate', b.state, null, b.special))
-              return (rb?.updatedAt ?? '').localeCompare(ra?.updatedAt ?? '') || a.state.localeCompare(b.state)
+              const rank = (r?: { status: string }) => (r && r.status !== 'no_data' ? 0 : r ? 1 : 2)
+              return rank(ra) - rank(rb) || a.state.localeCompare(b.state)
             }).slice(0, 8).map((seat) => {
               const r = map.get(raceKey('senate', seat.state, null, seat.special))
               return <RaceCard key={seat.state + seat.special} office="senate" state={seat.state} special={seat.special} race={r} heldBy={seat.heldBy} compact

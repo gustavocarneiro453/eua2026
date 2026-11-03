@@ -50,6 +50,12 @@ export interface Snapshot {
   /** States with data coverage, per the source */
   coverage: string[]
   isDemo: boolean
+  /** Replayed past election (e.g. 2024), clearly labeled in the UI */
+  replayYear?: number | null
+  /** Whether the source can ever declare winners. Open America never does. */
+  callsSupported: boolean
+  /** Source-side freshness: waiting = no votes yet; final = all precincts in (not certification) */
+  sourceState: 'waiting' | 'live' | 'stale' | 'final'
   races: Race[]
 }
 

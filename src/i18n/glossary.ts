@@ -31,9 +31,10 @@ export const GLOSSARY: Record<Lang, Record<TermKey, Entry>> = {
       'Na eleição presidencial, cada estado tem um número de delegados igual à soma de seus senadores e deputados.',
       'Em quase todos os estados, quem vence no voto popular estadual leva todos os delegados. São necessários 270 de 538 para vencer.',
       'O resultado das midterms não altera o Colégio Eleitoral, mas a distribuição de cadeiras da Câmara é a mesma base usada para calculá-lo.' ] },
-    reporting: { term: 'Apuração e percentual apurado', short: 'Percentual estimado dos votos esperados que já foi contado e divulgado. Não é o percentual de urnas.', long: [
+    reporting: { term: 'Apuração e percentual apurado', short: 'Percentual das seções eleitorais (ou condados, conforme o estado) com contagem divulgada. Não é o percentual de votos já contados.', long: [
       'Nos EUA a contagem é descentralizada e pode levar dias: votos pelo correio e cédulas provisórias costumam ser contados depois.',
       'Por isso o candidato que lidera na noite da eleição pode perder quando os votos restantes forem contabilizados.',
+      'Mesmo com 100% das seções apuradas, a contagem ainda pode mudar até a certificação pelo estado.',
       'Quando a fonte não informa o percentual apurado, mostramos "sem informação" — nunca zero.' ] },
     resultTypes: { term: 'Liderança, projeção, oficial e certificado', short: 'Liderar não é vencer. Projeções são estimativas da mídia; resultados oficiais e certificados vêm dos estados.', long: [
       'Liderança: o candidato tem mais votos contados até agora.',
@@ -72,9 +73,10 @@ export const GLOSSARY: Record<Lang, Record<TermKey, Entry>> = {
       'Each state gets electors equal to its senators plus representatives.',
       'In almost every state the statewide popular-vote winner takes all electors. 270 of 538 are needed to win.',
       'Midterms do not change the Electoral College, but House apportionment is the same basis used to size it.' ] },
-    reporting: { term: 'Vote count and percent reporting', short: 'Estimated share of the expected vote that has been counted and released. Not a share of precincts.', long: [
+    reporting: { term: 'Vote count and percent reporting', short: 'Share of precincts (or counties, depending on the state) with counts released. Not the share of votes counted.', long: [
       'Counting is decentralized and can take days: mail and provisional ballots are often counted later.',
       'The candidate leading on election night may lose once remaining ballots are counted.',
+      'Even with 100% of precincts reporting, counts can still change until the state certifies.',
       'When the source does not provide percent reporting we show “unknown” — never zero.' ] },
     resultTypes: { term: 'Leading, projected, official and certified', short: 'Leading is not winning. Projections are media estimates; official and certified results come from states.', long: [
       'Leading: the candidate has the most votes counted so far.',

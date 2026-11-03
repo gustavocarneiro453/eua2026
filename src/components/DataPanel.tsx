@@ -17,9 +17,10 @@ function useNow(ms = 15000) {
 export function DataBanner() {
   const { t, date } = useI18n()
   const feed = useFeed()
-  if (feed.snapshot?.isDemo) return <div className="bg-amber-400 py-2 text-center text-xs font-bold tracking-wide text-black">{t('data.demo')}</div>
+  if (feed.snapshot?.isDemo) return <div className="bg-amber-400 px-4 py-2 text-center text-xs font-bold tracking-wide text-black">{feed.snapshot.replayYear ? t('data.replay', { y: feed.snapshot.replayYear }) : t('data.demo')}</div>
   if (feed.stale && feed.lastSuccessAt) return <Strip>{t('data.stale', { t: date(feed.lastSuccessAt) })}</Strip>
   if (feed.status === 'error') return <Strip>{t('data.error', { e: feed.error ?? '' })}</Strip>
+  if (feed.snapshot?.sourceState === 'stale') return <Strip>{t('data.sourceStale', { t: date(feed.snapshot.generatedAt) })}</Strip>
   return null
 }
 function Strip({ children }: { children: React.ReactNode }) {
@@ -39,17 +40,20 @@ export function DataPanel() {
         <dl className="grid grid-cols-1 gap-3">
           <div><dt className="eyebrow">{t('data.source')}</dt>
             <dd className="mt-1">{src ? <a className="text-accent hover:underline" href={src.url} target="_blank" rel="noreferrer">{src.name}</a> : <span className="text-muted">Open America — {t('live.notConfigured').toLowerCase()}</span>}
-              {src?.attribution && <span className="block text-xs text-muted">{src.attribution}</span>}</dd></div>
+              {src?.attribution && <span className="mt-1 block text-xs text-muted">“<a href="https://openamerica.io/" target="_blank" rel="noreferrer" className="hover:text-ink">{src.attribution}</a>”</span>}</dd></div>
           <div><dt className="eyebrow">{t('data.lastSuccess')}</dt>
             <dd className="num mt-1">{feed.lastSuccessAt ? <>{date(feed.lastSuccessAt)} <span className="text-xs text-muted">({ago(feed.lastSuccessAt)})</span></> : <span className="text-muted">{t('data.never')}</span>}</dd></div>
           {feed.snapshot?.generatedAt && <div><dt className="eyebrow">{t('data.generated')}</dt><dd className="num mt-1">{date(feed.snapshot.generatedAt)}</dd></div>}
         </dl>
         {feed.status !== 'not_configured' && (
           <div className="flex items-center justify-between gap-3 border-t border-line pt-3">
-            <span className="text-xs text-muted">{t('data.poll', { n: feedConfig.pollMs / 1000 })}</span>
+            <span className="text-xs text-muted">{t('data.poll', { n: feed.snapshot?.sourceState === 'waiting' || feed.snapshot?.sourceState === 'final' ? '10 min' : `${feedConfig.pollMs / 1000} s` })}</span>
             <Button variant="outline" size="sm" onClick={() => refreshFeed()}><RefreshCw className="h-3.5 w-3.5" />{t('data.refresh')}</Button>
           </div>
         )}
+        {feed.snapshot?.sourceState === 'waiting' && <p className="rounded-lg bg-surface-2 p-3 text-xs leading-relaxed text-muted">{t('data.waiting')}</p>}
+        {feed.snapshot && !feed.snapshot.callsSupported && <p className="text-xs leading-relaxed text-muted">{t('data.noCalls')}</p>}
+        {feed.snapshot && <p className="text-xs leading-relaxed text-muted">{t('data.reportingUnit')}</p>}
         <p className="border-t border-line pt-3 text-xs text-muted">{t('data.institutional')}</p>
         <p className="text-xs text-muted">{t('data.coverageNote')}</p>
       </CardBody>
