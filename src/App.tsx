@@ -12,6 +12,7 @@ const Governors = lazy(() => import('@/pages/Governors'))
 const States = lazy(() => import('@/pages/States').then((m) => ({ default: m.StatesIndex })))
 const StateDetail = lazy(() => import('@/pages/States').then((m) => ({ default: m.StateDetail })))
 const Learn = lazy(() => import('@/pages/Learn'))
+const News = lazy(() => import('@/pages/News'))
 
 export default function App() {
   useEffect(() => { startFeed() }, [])
@@ -29,6 +30,7 @@ export default function App() {
                 <Route path="states" element={<States />} />
                 <Route path="states/:code" element={<StateDetail />} />
                 <Route path="learn" element={<Learn />} />
+                <Route path="news" element={<News />} />
                 <Route path="*" element={<Overview />} />
               </Route>
             </Routes>

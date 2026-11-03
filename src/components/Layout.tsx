@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import type { DictKey } from '@/i18n/dict'
 
 const NAV: [string, DictKey][] = [
-  ['/', 'nav.overview'], ['/senate', 'nav.senate'], ['/house', 'nav.house'], ['/governors', 'nav.governors'], ['/states', 'nav.states'], ['/learn', 'nav.learn'],
+  ['/', 'nav.overview'], ['/senate', 'nav.senate'], ['/house', 'nav.house'], ['/governors', 'nav.governors'], ['/states', 'nav.states'], ['/news', 'nav.news'], ['/learn', 'nav.learn'],
 ]
 
 export function LiveIndicator() {
@@ -45,7 +45,7 @@ export function LangSwitch() {
 
 function Logo() {
   return (
-    <Link to="/" className="flex items-center gap-2.5">
+    <Link to="/" className="flex shrink-0 items-center gap-2.5 whitespace-nowrap">
       <svg viewBox="0 0 32 32" className="h-7 w-7" aria-hidden><rect width="32" height="32" rx="6" fill="#182438" /><rect x="6" y="8" width="9" height="16" rx="1.5" fill="var(--color-dem)" /><rect x="17" y="8" width="9" height="16" rx="1.5" fill="var(--color-rep)" /></svg>
       <span className="font-serif text-xl font-bold tracking-tight">EUA <span className="text-accent">2026</span></span>
     </Link>
@@ -66,18 +66,18 @@ export function Layout() {
           <Logo />
           <span className="hidden h-5 w-px bg-line sm:block" />
           <span className="hidden sm:block"><LiveIndicator /></span>
-          <nav className="ml-auto hidden items-center lg:flex">
+          <nav className="ml-auto hidden items-center xl:flex">
             {NAV.map(([to, k]) => <NavLink key={to} to={to} end={to === '/'} className={link}>{t(k)}</NavLink>)}
           </nav>
-          <div className="ml-auto flex items-center gap-2 lg:ml-2">
+          <div className="ml-auto flex items-center gap-2 xl:ml-2">
             <LangSwitch />
-            <button className="rounded-md p-2 text-muted hover:text-ink lg:hidden" onClick={() => setOpen((o) => !o)} aria-label={t('nav.menu')} aria-expanded={open}>
+            <button className="rounded-md p-2 text-muted hover:text-ink xl:hidden" onClick={() => setOpen((o) => !o)} aria-label={t('nav.menu')} aria-expanded={open}>
               {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
           </div>
         </div>
         {open && (
-          <nav className="border-t border-line bg-bg lg:hidden">
+          <nav className="border-t border-line bg-bg xl:hidden">
             <div className="container-x flex flex-col py-2">
               <span className="py-2 sm:hidden"><LiveIndicator /></span>
               {NAV.map(([to, k]) => (

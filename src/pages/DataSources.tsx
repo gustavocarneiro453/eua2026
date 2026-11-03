@@ -4,6 +4,7 @@ import { useI18n } from '@/i18n'
 import { useFeed } from '@/hooks/useElections'
 import { OA_ATTRIBUTION, OA_BASE, OA_COVERAGE, OA_DOCS, OA_OFFICES, oaUrl } from '@/services/openamerica'
 import { feedConfig } from '@/services/elections'
+import { GDELT_SITE } from '@/services/newsNormalize'
 import { STATES } from '@/data/states'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -63,6 +64,16 @@ export default function DataSources() {
           <Row label={t('dsrc.access')}>{t('dsrc.accessVal')}</Row>
           <Row label={t('dsrc.license')}>{t('dsrc.licenseVal')}</Row>
           <Row label={t('dsrc.attr')}><span className="italic">“{OA_ATTRIBUTION}”</span></Row>
+        </dl>
+      </Section>
+
+      <Section title={t('dsrc.news')}>
+        <dl>
+          <Row label={t('dsrc.newsProvider')}><a href={GDELT_SITE} target="_blank" rel="noreferrer" className="text-accent hover:underline">{t('dsrc.newsProviderVal')}</a></Row>
+          <Row label={t('dsrc.newsWhat')}>{t('dsrc.newsWhatVal')}</Row>
+          <Row label={t('dsrc.newsPath')}>{t('dsrc.newsPathVal')}</Row>
+          <Row label={t('dsrc.newsFresh')}>{t('dsrc.newsFreshVal')}</Row>
+          <Row label={t('dsrc.newsLicense')}>{t('dsrc.newsLicenseVal')}</Row>
         </dl>
       </Section>
 

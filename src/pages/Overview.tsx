@@ -10,6 +10,7 @@ import { SeatBalance, type Segment } from '@/components/SeatBalance'
 import { USMap } from '@/components/USMap'
 import { InfoTip } from '@/components/InfoTip'
 import { RaceCard } from '@/components/election'
+import { NewsList } from '@/components/NewsList'
 import { DataBanner, DataPanel, UpdatesFeed } from '@/components/DataPanel'
 import type { TermKey } from '@/i18n/glossary'
 import type { Party } from '@/services/types'
@@ -54,7 +55,7 @@ function SummaryCard({ title, term, sub, children, to }: { title: string; term: 
 }
 
 export default function Overview() {
-  const { t, num, longDate, glossary } = useI18n()
+  const { t, num, longDate, glossary, lang } = useI18n()
   const { map, coverage, feed } = useRaces()
   const { senate, house, s, h, g, has, calls } = useSegments()
   const days = daysToElection(ELECTION_DATE)
@@ -122,6 +123,15 @@ export default function Overview() {
             </div>
             <p className="text-[11px] text-muted">{t('sum.govNote')}</p>
           </SummaryCard>
+        </section>
+
+        {/* LATEST NEWS */}
+        <section>
+          <div className="mb-4 flex items-end justify-between gap-4 border-b border-line pb-3">
+            <h2 className="font-serif text-2xl font-semibold">{t('news.latest')}</h2>
+            <Link to="/news" className="text-xs font-medium text-accent hover:underline">{t('common.seeAll')} →</Link>
+          </div>
+          <NewsList lang={lang} limit={6} columns />
         </section>
 
         {/* MAP + SIDEBAR */}
