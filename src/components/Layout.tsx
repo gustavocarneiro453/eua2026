@@ -15,10 +15,11 @@ export function LiveIndicator() {
   const feed = useFeed()
   const [label, color, pulse] =
     feed.status === 'not_configured' ? [t('live.notConfigured'), 'text-muted', false]
+    : feed.snapshot?.isDemo ? [t('live.demo'), 'text-amber-400', false]
     : feed.stale ? [t('live.stale'), 'text-amber-400', false]
     : feed.status === 'error' ? [t('live.offline'), 'text-amber-400', false]
     : feed.status === 'loading' ? [t('live.loading'), 'text-muted', true]
-    : [t('live.live'), 'text-red-500', true]
+    : [t('live.live'), 'text-live', true]
   return (
     <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em]" role="status">
       <span className={cn('relative inline-block h-2 w-2 rounded-full bg-current', color, pulse && 'live-dot')} />
@@ -51,8 +52,8 @@ function Logo() {
 export function Layout() {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
-  const { pathname } = useLocation()
-  useEffect(() => { setOpen(false); window.scrollTo(0, 0) }, [pathname])
+  const { pathname, hash } = useLocation()
+  useEffect(() => { setOpen(false); if (!hash) window.scrollTo(0, 0) }, [pathname])
   const link = ({ isActive }: { isActive: boolean }) =>
     cn('relative px-3 py-2 text-sm font-medium transition-colors', isActive ? 'text-ink after:absolute after:inset-x-3 after:-bottom-[13px] after:h-0.5 after:bg-accent' : 'text-muted hover:text-ink')
   return (

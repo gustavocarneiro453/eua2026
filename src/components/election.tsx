@@ -70,11 +70,11 @@ function CandidateRow({ c, race, max }: { c: Candidate; race: Race; max: number 
   const isLeader = !w && l?.id === c.id && race.status === 'counting'
   return (
     <li className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 py-2">
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
         <PartyDot party={c.party} />
-        <span className={cn('truncate text-sm', isWinner ? 'font-semibold text-ink' : 'text-ink/90')}>{c.name}</span>
+        <span className={cn('break-words text-sm', isWinner ? 'font-semibold text-ink' : 'text-ink/90')}>{c.name}</span>
         {c.incumbent && <span className="text-[10px] uppercase tracking-wider text-muted">inc.</span>}
-        {isWinner && <Badge variant="success" className="ml-1"><CheckCircle2 className="h-3 w-3" />{t(winLabelKey(race.status))}</Badge>}
+        {isWinner && <Badge variant="success"><CheckCircle2 className="h-3 w-3" />{t(winLabelKey(race.status))}</Badge>}
         {isLeader && <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-300">{t('race.leader')}</span>}
       </div>
       <div className="num text-right text-sm">

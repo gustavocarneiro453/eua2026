@@ -71,10 +71,10 @@ function diff(prev: Snapshot | null, next: Snapshot) {
   const old = new Map(prev.races.map((r) => [r.id, r]))
   const now = Date.now()
   for (const r of next.races) {
-    const o = old.get(r.id)
-    if (!o || o.status === r.status) continue
+    const prevStatus = old.get(r.id)?.status ?? 'no_data'
+    if (prevStatus === r.status) continue
     const kind: UpdateEvent['kind'] | null =
-      o.status === 'no_data' && r.status === 'counting' ? 'first_results'
+      prevStatus === 'no_data' && r.status === 'counting' ? 'first_results'
       : r.status === 'projected' || r.status === 'official' || r.status === 'certified' ? r.status : null
     if (kind) events = [{ id: `${r.id}:${kind}:${now}`, at: now, raceId: r.id, kind }, ...events].slice(0, 50)
   }

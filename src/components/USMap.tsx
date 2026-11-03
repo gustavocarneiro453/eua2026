@@ -36,6 +36,8 @@ export const USMap = memo(function USMap({ initialLayer = 'senate', showLayers =
   const [layer, setLayer] = useState<Layer>(initialLayer)
   const [hover, setHover] = useState<{ code: string; x: number; y: number } | null>(null)
   const box = useRef<HTMLDivElement>(null)
+  const pointer = useRef<string>('mouse')
+  const previewed = useRef<string | null>(null)
   const info = useMemo(() => summarize(layer, map, coverage, !!feed.snapshot), [layer, map, coverage, feed.snapshot])
   const select = (code: string) => (onSelect ? onSelect(code) : navigate(`/states/${code}`))
   const move = (code: string, e: React.MouseEvent) => {
@@ -55,7 +57,7 @@ export const USMap = memo(function USMap({ initialLayer = 'senate', showLayers =
           ))}
         </div>
       )}
-      <div ref={box} className="relative" onMouseLeave={() => setHover(null)}>
+      <div ref={box} className="relative" onMouseLeave={() => { if (pointer.current !== 'touch') setHover(null) }}>
         <ComposableMap projection="geoAlbersUsa" width={975} height={610} projectionConfig={{ scale: 1280 }} className="h-auto w-full" aria-label={t('map.title')}>
           <Geographies geography={topo}>
             {({ geographies }) => geographies.map((geo) => {
@@ -66,7 +68,12 @@ export const USMap = memo(function USMap({ initialLayer = 'senate', showLayers =
               return (
                 <Geography key={geo.rsmKey} geography={geo} tabIndex={0} role="button" aria-label={s.name}
                   onMouseMove={(e) => move(s.code, e)} onFocus={() => setHover({ code: s.code, x: 40, y: 40 })} onBlur={() => setHover(null)}
-                  onClick={() => select(s.code)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(s.code) } }}
+                  onPointerDown={(e) => { pointer.current = e.pointerType }}
+                  onClick={(e) => {
+                    // Touch: first tap shows the preview, second tap on the same state opens it.
+                    if (pointer.current === 'touch' && previewed.current !== s.code) { previewed.current = s.code; move(s.code, e); return }
+                    select(s.code)
+                  }} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(s.code) } }}
                   style={{
                     default: { fill: f.fill, fillOpacity: f.opacity, stroke: isSel ? '#F5F7FA' : '#101827', strokeWidth: isSel ? 2 : 0.8, outline: 'none', transition: 'fill-opacity .2s' },
                     hover: { fill: f.fill, fillOpacity: Math.min(1, f.opacity + 0.2), stroke: '#F5F7FA', strokeWidth: 1.5, outline: 'none', cursor: 'pointer' },

@@ -8,7 +8,7 @@ const KEY = 'eua2026:lang'
 function initialLang(): Lang {
   try {
     const q = new URLSearchParams(location.search).get('lang')
-    if (q === 'en' || q === 'pt') return q
+    if (q === 'en' || q === 'pt') { localStorage.setItem(KEY, q); return q }
     const s = localStorage.getItem(KEY)
     if (s === 'en' || s === 'pt') return s
   } catch { /* ignore */ }

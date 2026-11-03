@@ -9,7 +9,11 @@ const ORDER: TermKey[] = ['midterm', 'senate', 'house', 'district', 'majority', 
 export default function Learn() {
   const { t, glossary } = useI18n()
   const { hash } = useLocation()
-  useEffect(() => { if (hash) document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'start' }) }, [hash])
+  useEffect(() => {
+    if (!hash) return
+    const id = requestAnimationFrame(() => document.getElementById(hash.slice(1))?.scrollIntoView({ block: 'start' }))
+    return () => cancelAnimationFrame(id)
+  }, [hash])
   return (
     <>
       <PageHeader eyebrow={t('nav.learn')} title={t('learn.title')} lede={t('learn.lede')} />

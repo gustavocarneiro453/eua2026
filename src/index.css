@@ -8,10 +8,11 @@
   --color-ink: #F5F7FA;
   --color-muted: #8995A7;
   --color-accent: #3B82F6;
-  --color-rep: #2563EB;
-  --color-dem: #DC2626;
+  --color-rep: #DC2626;
+  --color-dem: #2563EB;
   --color-ind: #A78BFA;
   --color-success: #22C55E;
+  --color-live: #EF4444;
   --color-warn: #F59E0B;
   --color-na: #2A3850;
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
