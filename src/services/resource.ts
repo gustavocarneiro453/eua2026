@@ -23,6 +23,7 @@ export function createResource<T extends { fetchedAt: string }>(o: { id: string;
   const listeners = new Set<() => void>()
   let inflight: Promise<void> | null = null
   let fails = 0, users = 0
+  let retryAt = 0 // after a failure, mounting components must not retry immediately
   let timer: ReturnType<typeof setTimeout> | undefined
   const set = (p: Partial<ResourceState<T>>) => { state = { ...state, ...p }; listeners.forEach((l) => l()) }
 
@@ -38,6 +39,7 @@ export function createResource<T extends { fetchedAt: string }>(o: { id: string;
         try { localStorage.setItem(storageKey, JSON.stringify({ at: now, data })) } catch { /* quota */ }
       } catch (e) {
         fails++
+        retryAt = Date.now() + Math.min(30 * 60_000, Math.max(30_000, o.pollMs * 2 ** Math.min(fails, 3) / 4))
         set({ status: 'error', error: e instanceof Error ? e.message : 'unknown' })
       } finally { inflight = null }
     })())
@@ -49,7 +51,8 @@ export function createResource<T extends { fetchedAt: string }>(o: { id: string;
   }
   function start() {
     users++
-    if (!state.lastSuccessAt || Date.now() - state.lastSuccessAt > o.pollMs / 2) refresh().then(schedule); else schedule()
+    const due = !state.lastSuccessAt || Date.now() - state.lastSuccessAt > o.pollMs / 2
+    if (due && Date.now() >= retryAt) refresh().then(schedule); else schedule()
     return () => { users--; if (!users) clearTimeout(timer) }
   }
   return {

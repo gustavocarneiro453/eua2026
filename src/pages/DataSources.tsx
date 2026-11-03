@@ -83,7 +83,7 @@ export default function DataSources() {
     },
     {
       id: 'senate', nameKey: 'src.senate.name', providesKey: 'src.senate.provides', cadenceKey: 'src.senate.cadence', natures: ['official'],
-      endpoints: [SENATE_XML], last: copyOf(senate.data?.fetchedAt),
+      endpoints: [SENATE_XML], last: senate.data?.fallback ? <span className="num">{t('src.embedded', { t: date(senate.data.fetchedAt) })}</span> : copyOf(senate.data?.fetchedAt),
       links: [{ href: 'https://www.senate.gov/', label: 'src.site' }, { href: SENATE_XML, label: 'src.docs' }],
     },
     {

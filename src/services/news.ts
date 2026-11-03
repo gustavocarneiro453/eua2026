@@ -23,6 +23,7 @@ const states: Record<NewsLang, NewsState> = { pt: init('pt'), en: init('en') }
 const listeners = new Set<() => void>()
 const inflight: Partial<Record<NewsLang, Promise<void>>> = {}
 const fails: Record<NewsLang, number> = { pt: 0, en: 0 }
+const retryAt: Record<NewsLang, number> = { pt: 0, en: 0 } // no immediate retries from newly mounted components
 const timers: Partial<Record<NewsLang, ReturnType<typeof setTimeout>>> = {}
 const users: Record<NewsLang, number> = { pt: 0, en: 0 }
 
@@ -56,6 +57,7 @@ function fetchNews(lang: NewsLang): Promise<void> {
       if (!keep) try { localStorage.setItem(key(lang), JSON.stringify({ at: now, payload })) } catch { /* quota */ }
     } catch (e) {
       fails[lang]++
+      retryAt[lang] = Date.now() + Math.min(MAX_BACKOFF_MS, Math.max(30_000, POLL_MS * 2 ** Math.min(fails[lang], 3) / 4))
       set(lang, { status: 'error', error: e instanceof Error ? e.message : 'unknown' })
     } finally {
       delete inflight[lang]
@@ -76,7 +78,7 @@ function schedule(lang: NewsLang) {
 function start(lang: NewsLang) {
   users[lang]++
   const s = states[lang]
-  if (!s.lastSuccessAt || Date.now() - s.lastSuccessAt > REUSE_MS) fetchNews(lang).then(() => schedule(lang))
+  if ((!s.lastSuccessAt || Date.now() - s.lastSuccessAt > REUSE_MS) && Date.now() >= retryAt[lang]) fetchNews(lang).then(() => schedule(lang))
   else schedule(lang)
   return () => { users[lang]--; if (!users[lang]) clearTimeout(timers[lang]) }
 }

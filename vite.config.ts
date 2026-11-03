@@ -30,6 +30,7 @@ function pagesFunctionsDev(): Plugin {
           const pending: Promise<unknown>[] = []
           const r: Response = await mod.onRequestGet({ request: new Request(`http://${req.headers.host}${req.url}`), waitUntil: (p: Promise<unknown>) => pending.push(p.catch(() => {})) })
           await Promise.all(pending)
+          if (r.status >= 500) console.warn(`[api/${m[1]}] ${r.status} ${await r.clone().text()}`) // shows WHY the upstream failed
           res.statusCode = r.status
           r.headers.forEach((val, key) => res.setHeader(key, val))
           res.end(Buffer.from(await r.arrayBuffer()))

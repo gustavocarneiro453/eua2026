@@ -6,7 +6,7 @@
  * U.S. government work, public domain.
  */
 export interface SenateMember { state: string; senateClass: 1 | 2 | 3; first: string; last: string; party: 'REP' | 'DEM' | 'IND'; bioguide: string }
-export interface SenatePayload { api: 1; fetchedAt: string; source: 'senate.gov'; members: SenateMember[] }
+export interface SenatePayload { api: 1; fetchedAt: string; source: 'senate.gov'; members: SenateMember[]; /** true = embedded safety copy, not fetched live */ fallback?: boolean }
 
 export const SENATE_XML = 'https://www.senate.gov/general/contact_information/senators_cfm.xml'
 const ENT: Record<string, string> = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'", '&#39;': "'" }
