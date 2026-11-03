@@ -14,15 +14,21 @@
 
 export type NewsLang = 'pt' | 'en'
 
+export type NewsSourceId = 'gdelt' | 'ebc'
+
 export interface NewsItem {
   id: string
   title: string
   url: string
   domain: string
-  /** ISO 8601 UTC: when GDELT first saw the article */
+  /** ISO 8601 UTC: GDELT = when it indexed the article; EBC = publication time */
   seenAt: string
   country: string | null
+  /** Which source supplied the item (missing in older cached copies = gdelt) */
+  source?: NewsSourceId
 }
+
+export interface NewsSourceStatus { id: NewsSourceId; name: string; ok: boolean; count: number }
 
 export interface NewsPayload {
   api: 1
@@ -30,11 +36,18 @@ export interface NewsPayload {
   /** When our server obtained this list from GDELT */
   fetchedAt: string
   source: 'GDELT'
+  /** Per-source outcome of this refresh (Portuguese feed combines GDELT and Agência Brasil) */
+  sources?: NewsSourceStatus[]
   items: NewsItem[]
 }
 
 export const GDELT_ENDPOINT = 'https://api.gdeltproject.org/api/v2/doc/doc'
 export const GDELT_SITE = 'https://www.gdeltproject.org/'
+export const EBC_SITE = 'https://agenciabrasil.ebc.com.br/'
+export const EBC_FEED = 'https://agenciabrasil.ebc.com.br/rss/internacional/feed.xml'
+export const EBC_TERMS = 'https://www.ebc.com.br/termos-de-uso-e-condicoes-gerais-do-portal-da-ebc'
+export const SOURCE_NAME: Record<NewsSourceId, string> = { gdelt: 'GDELT Project', ebc: 'Agência Brasil (EBC)' }
+export const SOURCE_URL: Record<NewsSourceId, string> = { gdelt: GDELT_SITE, ebc: EBC_SITE }
 
 export const GDELT_QUERY: Record<NewsLang, string> = {
   pt: '("eleições nos EUA" OR "eleições americanas" OR "eleições de meio de mandato" OR "eleições legislativas dos EUA" OR midterms) sourcelang:portuguese',
@@ -66,7 +79,7 @@ export function parseSeenDate(s: unknown): string | null {
   return Number.isNaN(Date.parse(iso)) ? null : iso
 }
 
-const dedupKey = (title: string) => title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim().slice(0, 70)
+export const dedupKey = (title: string) => title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim().slice(0, 70)
 
 /** Raw GDELT ArtList JSON → clean, deduplicated items (newest first). Never invents fields. */
 export function normalizeGdelt(raw: unknown, limit = 36): NewsItem[] {
@@ -90,6 +103,7 @@ export function normalizeGdelt(raw: unknown, limit = 36): NewsItem[] {
       domain: typeof a.domain === 'string' && a.domain ? a.domain.replace(/^www\./, '') : u.hostname.replace(/^www\./, ''),
       seenAt,
       country: typeof a.sourcecountry === 'string' && a.sourcecountry ? a.sourcecountry : null,
+      source: 'gdelt',
     })
   }
   out.sort((x, y) => Date.parse(y.seenAt) - Date.parse(x.seenAt))
@@ -102,5 +116,6 @@ export function validateNews(raw: any, lang: NewsLang): NewsPayload {
   for (const i of raw.items) {
     if (!i || typeof i.title !== 'string' || typeof i.url !== 'string' || !/^https?:\/\//.test(i.url) || Number.isNaN(Date.parse(i.seenAt))) throw new Error('invalid_news_item')
   }
+  if (raw.sources !== undefined && !(Array.isArray(raw.sources) && raw.sources.every((s: any) => s && (s.id === 'gdelt' || s.id === 'ebc') && typeof s.ok === 'boolean'))) throw new Error('invalid_news_sources')
   return raw as NewsPayload
 }

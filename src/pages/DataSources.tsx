@@ -4,7 +4,7 @@ import { useI18n } from '@/i18n'
 import { useFeed } from '@/hooks/useElections'
 import { OA_ATTRIBUTION, OA_BASE, OA_COVERAGE, OA_DOCS, OA_OFFICES, oaUrl } from '@/services/openamerica'
 import { feedConfig } from '@/services/elections'
-import { GDELT_SITE } from '@/services/newsNormalize'
+import { EBC_FEED, EBC_SITE, EBC_TERMS, GDELT_SITE } from '@/services/newsNormalize'
 import { SENATE_XML } from '@/services/senateNormalize'
 import { VOTEHUB_API, VOTEHUB_SITE } from '@/services/pollsNormalize'
 import { useNews } from '@/services/news'
@@ -54,6 +54,8 @@ export default function DataSources() {
   const polls = usePolls()
   const senate = useSenate()
   const news = useNews(lang)
+  const newsPt = useNews('pt') // Agência Brasil is part of the Portuguese feed
+  const ebcStatus = newsPt.payload?.sources?.find((s) => s.id === 'ebc')
   const covered = new Set(OA_COVERAGE)
   const never = <span className="text-muted">{t('src.notYet')}</span>
   const copyOf = (iso?: string) => (iso ? <span className="num">{t('src.fetchedAt', { t: date(iso) })}</span> : never)
@@ -100,6 +102,12 @@ export default function DataSources() {
       id: 'news', nameKey: 'src.news.name', providesKey: 'src.news.provides', cadenceKey: 'src.news.cadence', natures: ['news'],
       endpoints: ['https://api.gdeltproject.org/api/v2/doc/doc?mode=ArtList&…'], last: copyOf(news.payload?.fetchedAt),
       links: [{ href: GDELT_SITE, label: 'src.site' }, { href: 'https://www.gdeltproject.org/about.html', label: 'src.terms' }],
+    },
+    {
+      id: 'ebc', nameKey: 'src.ebc.name', providesKey: 'src.ebc.provides', cadenceKey: 'src.ebc.cadence', natures: ['news'],
+      endpoints: [EBC_FEED], last: !newsPt.payload ? never : ebcStatus?.ok ? copyOf(newsPt.payload.fetchedAt) : <span className="text-amber-300">{t('src.ebc.down')}</span>,
+      links: [{ href: EBC_SITE, label: 'src.site' }, { href: 'https://agenciabrasil.ebc.com.br/rss', label: 'src.docs' }, { href: EBC_TERMS, label: 'src.terms' }],
+      extra: <Row label={t('dsrc.attr')}>{t('src.ebc.terms')}</Row>,
     },
     {
       id: 'ref', nameKey: 'src.ref.name', providesKey: 'src.ref.provides', cadenceKey: 'src.ref.cadence', natures: ['reference'], last: <span className="text-muted">{t('common.dash')}</span>,
