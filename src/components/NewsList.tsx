@@ -14,6 +14,8 @@ export function NewsList({ lang, limit, columns = false }: { lang: NewsLang; lim
   const news = useNews(lang)
   const items = news.payload?.items.slice(0, limit) ?? []
   const stale = !!news.lastSuccessAt && Date.now() - news.lastSuccessAt > NEWS_STALE_MS
+  // The source's own index can stall even when our fetch succeeds: warn when the newest headline is old.
+  const lagH = news.payload?.items[0] ? Math.floor((Date.now() - Date.parse(news.payload.items[0].seenAt)) / 3_600_000) : 0
 
   return (
     <div>
@@ -26,6 +28,7 @@ export function NewsList({ lang, limit, columns = false }: { lang: NewsLang; lim
       )}
       {news.status !== 'error' && stale && news.lastSuccessAt && <p className="mb-3 text-xs text-amber-300">{t('news.staleWarn', { t: time(news.lastSuccessAt) })}</p>}
 
+      {lagH >= 3 && <p className="mb-3 rounded-lg bg-warn/15 px-3 py-2 text-xs leading-relaxed text-amber-200">{t('news.lagWarn', { h: lagH })}</p>}
       {!items.length && news.status === 'loading' && (
         <ul className={cn('grid gap-3', columns && 'sm:grid-cols-2 lg:grid-cols-3')} aria-busy="true" aria-label={t('news.loading')}>
           {Array.from({ length: Math.min(limit, 6) }, (_, i) => <li key={i} className="h-24 animate-pulse rounded-xl border border-line bg-surface" />)}

@@ -7,6 +7,15 @@ export interface Stamped { fetchedAt: string }
 
 const inflight = new Map<string, Promise<unknown>>()
 
+/** fetch() that reports WHY it failed (timeout, DNS, TLS, reset) instead of the opaque "fetch failed". */
+export async function fetchUpstream(url: string, init: RequestInit): Promise<Response> {
+  try { return await fetch(url, init) } catch (e) {
+    const err = e as { name?: string; cause?: { code?: string; message?: string } }
+    const why = err.name === 'TimeoutError' || err.name === 'AbortError' ? 'timeout' : (err.cause?.code ?? err.cause?.message ?? err.name ?? 'unknown')
+    throw new Error(`upstream_unreachable_${String(why).replace(/\W+/g, '_').slice(0, 60)}`)
+  }
+}
+
 export function jsonResponse(body: unknown, state: string, browserMaxAge: number, status = 200) {
   return new Response(JSON.stringify(body), {
     status,

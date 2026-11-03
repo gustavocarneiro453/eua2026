@@ -4,14 +4,14 @@
  * trimmed to 2026 general-election polls of the last 150 days (≤6 per race). Edge cache: fresh 30 min,
  * stale up to 24 h if VoteHub fails. Polls are labeled as polls everywhere in the UI, never as results.
  */
-import { serveCached } from '../../src/services/edgeCache'
+import { fetchUpstream, serveCached } from '../../src/services/edgeCache'
 import { normalizePolls, POLL_TYPES, VOTEHUB_API, type Poll, type PollsPayload } from '../../src/services/pollsNormalize'
 
 const UA = 'eua2026-polls/1.0 (election coverage; attribution to VoteHub shown)'
 
 async function produce(): Promise<PollsPayload> {
   const lists = await Promise.all(POLL_TYPES.map(async (t) => {
-    const res = await fetch(`${VOTEHUB_API}?${t.query}`, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: AbortSignal.timeout(25_000) })
+    const res = await fetchUpstream(`${VOTEHUB_API}?${t.query}`, { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: AbortSignal.timeout(25_000) })
     if (!res.ok) throw new Error(`upstream_http_${res.status}`)
     let json: unknown
     try { json = await res.json() } catch { throw new Error('upstream_not_json') }

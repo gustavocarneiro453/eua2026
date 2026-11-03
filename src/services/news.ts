@@ -1,12 +1,11 @@
 import { useEffect, useSyncExternalStore } from 'react'
-import { gdeltUrl, normalizeGdelt, validateNews, type NewsLang, type NewsPayload } from './newsNormalize'
+import { validateNews, type NewsLang, type NewsPayload } from './newsNormalize'
 
 /**
- * Client for headlines. Production reads our cached endpoint /api/news (functions/api/news.ts),
- * never GDELT directly: GDELT allows one request per 5 s and returns 429 under load.
- * Direct mode exists only for local development (vite dev) or VITE_NEWS_DIRECT=1.
+ * Client for headlines. It only reads our own cached endpoint /api/news (functions/api/news.ts):
+ * GDELT allows one request per 5 s, answers 429 without CORS headers and is slow, so browsers never call it.
+ * `npm run dev` serves the same function locally (see vite.config.ts).
  */
-const DIRECT = import.meta.env.DEV || import.meta.env.VITE_NEWS_DIRECT === '1'
 const POLL_MS = 5 * 60_000
 const MAX_BACKOFF_MS = 30 * 60_000
 const REUSE_MS = 3 * 60_000
@@ -40,16 +39,9 @@ function set(lang: NewsLang, patch: Partial<NewsState>) {
 }
 
 async function load(lang: NewsLang): Promise<NewsPayload> {
-  if (!DIRECT) {
-    const res = await fetch(`/api/news?lang=${lang}`, { headers: { Accept: 'application/json' } })
-    if (!res.ok) throw new Error(`http_${res.status}`)
-    return validateNews(await res.json(), lang)
-  }
-  const res = await fetch(gdeltUrl(lang), { credentials: 'omit' })
-  const text = await res.text()
-  if (res.status === 429 || /^\s*Please limit requests/i.test(text)) throw new Error('http_429')
+  const res = await fetch(`/api/news?lang=${lang}`, { headers: { Accept: 'application/json' } })
   if (!res.ok) throw new Error(`http_${res.status}`)
-  return { api: 1, lang, fetchedAt: new Date().toISOString(), source: 'GDELT', items: normalizeGdelt(JSON.parse(text)) }
+  return validateNews(await res.json(), lang)
 }
 
 function fetchNews(lang: NewsLang): Promise<void> {

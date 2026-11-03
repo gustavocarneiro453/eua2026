@@ -19,7 +19,7 @@ export default function App() {
   return (
     <I18nProvider>
       <TooltipProvider delayDuration={150}>
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <Suspense fallback={<div className="container-x py-16" />}>
             <Routes>
               <Route element={<Layout />}>

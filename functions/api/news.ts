@@ -7,19 +7,29 @@
  * GDELT's terms allow redistribution with citation of the GDELT Project (the UI shows it).
  * Only headline metadata is stored; article text is never copied.
  */
-import { serveCached } from '../../src/services/edgeCache'
+import { fetchUpstream, serveCached } from '../../src/services/edgeCache'
 import { gdeltUrl, normalizeGdelt, type NewsLang, type NewsPayload } from '../../src/services/newsNormalize'
 
 const UA = 'eua2026-news/1.0 (headline aggregator for US midterm coverage)'
 
-async function fetchFromGdelt(lang: NewsLang): Promise<NewsPayload> {
-  const res = await fetch(gdeltUrl(lang), { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: AbortSignal.timeout(28_000) })
+async function fetchOnce(lang: NewsLang): Promise<NewsPayload> {
+  const res = await fetchUpstream(gdeltUrl(lang), { headers: { 'User-Agent': UA, Accept: 'application/json' }, signal: AbortSignal.timeout(28_000) })
   const text = await res.text()
   if (res.status === 429 || /^\s*Please limit requests/i.test(text)) throw new Error('upstream_rate_limited')
   if (!res.ok) throw new Error(`upstream_http_${res.status}`)
   let json: unknown
   try { json = JSON.parse(text) } catch { throw new Error('upstream_not_json') }
   return { api: 1, lang, fetchedAt: new Date(Date.now()).toISOString(), source: 'GDELT', items: normalizeGdelt(json) }
+}
+
+// GDELT asks for at most one request every 5 s: on a 429, wait 6 s and try once more.
+const RETRY_AFTER_RATE_LIMIT_MS = 6_000
+async function fetchFromGdelt(lang: NewsLang): Promise<NewsPayload> {
+  try { return await fetchOnce(lang) } catch (e) {
+    if (!(e instanceof Error) || e.message !== 'upstream_rate_limited') throw e
+    await new Promise((r) => setTimeout(r, RETRY_AFTER_RATE_LIMIT_MS))
+    return fetchOnce(lang)
+  }
 }
 
 export const onRequestGet = (ctx: { request: Request; waitUntil(p: Promise<unknown>): void }) => {
