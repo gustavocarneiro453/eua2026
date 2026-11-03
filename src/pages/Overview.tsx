@@ -11,6 +11,7 @@ import { USMap } from '@/components/USMap'
 import { InfoTip } from '@/components/InfoTip'
 import { RaceCard } from '@/components/election'
 import { NewsList } from '@/components/NewsList'
+import { PollsBlock } from '@/components/PollsBlock'
 import { DataBanner, DataPanel, UpdatesFeed } from '@/components/DataPanel'
 import type { TermKey } from '@/i18n/glossary'
 import type { Party } from '@/services/types'
@@ -146,6 +147,19 @@ export default function Overview() {
             <UpdatesFeed />
             <DataPanel />
           </div>
+        </section>
+
+        {/* POLLS: generic ballot */}
+        <section>
+          <Card>
+            <CardHeader>
+              <div><h2 className="font-serif text-xl font-semibold">{t('polls.generic')}</h2><p className="mt-0.5 max-w-2xl text-xs leading-relaxed text-muted">{t('polls.genericLede')}</p></div>
+            </CardHeader>
+            <CardBody>
+              <PollsBlock kind="generic" limit={5} expandable title={false} />
+              <p className="mt-3 border-t border-line pt-3 text-xs leading-relaxed text-muted">{t('polls.note')}</p>
+            </CardBody>
+          </Card>
         </section>
 
         {/* SENATE HIGHLIGHTS */}

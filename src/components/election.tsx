@@ -1,8 +1,11 @@
 import { Link } from 'react-router-dom'
-import { CheckCircle2, Clock, ShieldCheck, Megaphone, CircleDashed, Ban } from 'lucide-react'
+import { AlertTriangle, Ban, CheckCircle2, CircleDashed, Clock, ExternalLink, Megaphone, ShieldCheck } from 'lucide-react'
 import { useI18n } from '@/i18n'
 import type { Candidate, Party, Race } from '@/services/types'
-import { type DisplayStatus, leader, PARTY_COLOR, sortedCandidates, winLabelKey, winner } from '@/lib/race'
+import { type DisplayStatus, hasCountedVotes, leader, PARTY_COLOR, sortedCandidates, winLabelKey, winner } from '@/lib/race'
+import { useSenate } from '@/services/senate'
+import { PollsBlock } from '@/components/PollsBlock'
+import { STATE_OFFICES } from '@/data/stateOffices'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { STATE_BY_CODE } from '@/data/states'
@@ -11,6 +14,7 @@ import { cn } from '@/lib/utils'
 const STATUS_STYLE: Record<DisplayStatus, { variant: 'neutral' | 'live' | 'success' | 'warn' | 'accent'; Icon: typeof Clock }> = {
   no_data: { variant: 'neutral', Icon: CircleDashed },
   notCovered: { variant: 'neutral', Icon: Ban },
+  unavailable: { variant: 'warn', Icon: AlertTriangle },
   counting: { variant: 'warn', Icon: Clock },
   projected: { variant: 'accent', Icon: Megaphone },
   official: { variant: 'success', Icon: CheckCircle2 },
@@ -88,13 +92,45 @@ function CandidateRow({ c, race, max }: { c: Candidate; race: Race; max: number 
   )
 }
 
+/** Outbound link to the state's official election office (only for states outside the results feed). */
+export function StateOfficeLink({ state }: { state: string }) {
+  const { t } = useI18n()
+  const o = STATE_OFFICES[state]
+  if (!o) return null
+  return <a href={o.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-accent hover:underline">{o.name}<ExternalLink className="h-3 w-3" /><span className="sr-only">{t('news.opensNew')}</span></a>
+}
+
+/** What a race shows when it has no votes yet: the reason, plus any real candidate names the state published. */
+export function EmptyRace({ state, status, race, compact }: { state: string; status: DisplayStatus; race?: Race; compact?: boolean }) {
+  const { t } = useI18n()
+  return (
+    <div className="mt-3 space-y-3">
+      <div className="rounded-lg border border-dashed border-line px-3 py-3 text-xs leading-relaxed text-muted">
+        {status === 'notCovered' ? <>{t('race.notCoveredMsg')} <StateOfficeLink state={state} /></>
+          : status === 'unavailable' ? t('race.unavailableMsg') : t('race.await')}
+      </div>
+      {race && race.candidates.length > 0 && (
+        <div><p className="eyebrow mb-1">{t('race.listed')}</p>
+        <ul className="space-y-1" aria-label={t('race.listed')}>
+          {race.candidates.slice(0, compact ? 3 : 12).map((c) => (
+            <li key={c.id} className="flex items-center gap-2 text-sm"><PartyDot party={c.party} />{c.name}{c.incumbent && <span className="text-[10px] uppercase tracking-wider text-muted">inc.</span>}</li>
+          ))}
+        </ul></div>
+      )}
+    </div>
+  )
+}
+
 export function RaceCard({ office, state, district, special, race, status, heldBy, compact }: {
   office: Race['office']; state: string; district?: number | null; special?: boolean
   race?: Race; status: DisplayStatus; heldBy?: Party; compact?: boolean
 }) {
   const { t, date } = useI18n()
+  const senate = useSenate()
   const cands = race ? sortedCandidates(race) : []
+  const counted = hasCountedVotes(race)
   const max = Math.max(0, ...cands.map((c) => c.votes ?? 0))
+  const inc = office === 'senate' ? senate.incumbent(state, !!special) : null
   return (
     <article className="flex flex-col rounded-xl border border-line bg-surface p-4">
       <header className="flex items-start justify-between gap-3">
@@ -106,23 +142,30 @@ export function RaceCard({ office, state, district, special, race, status, heldB
         </div>
         <StatusBadge status={status} />
       </header>
-      {heldBy && (
+      {inc ? (
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-muted" title="senate.gov"><PartyDot party={inc.party} />{t('race.holder', { name: `${inc.first} ${inc.last}` })}</p>
+      ) : heldBy ? (
         <p className="mt-2 flex items-center gap-1.5 text-xs text-muted">{t('race.heldBy')}: <PartyTag party={heldBy} /></p>
-      )}
-      {cands.length ? (
+      ) : null}
+      {counted ? (
         <ul className="mt-2 divide-y divide-line/60">
           {(compact ? cands.slice(0, 3) : cands).map((c) => <CandidateRow key={c.id} c={c} race={race!} max={max} />)}
         </ul>
       ) : (
-        <p className="mt-3 rounded-lg border border-dashed border-line px-3 py-4 text-center text-xs text-muted">{t('race.noCandidates')}</p>
+        <EmptyRace state={state} status={status} race={race} compact={compact} />
+      )}
+      {!counted && office !== 'house' && (
+        <div className="mt-3 border-t border-line/60 pt-3">
+          <PollsBlock kind={office} state={state} limit={compact ? 1 : 2} hideEmpty footer={!compact} />
+        </div>
       )}
       <footer className="mt-auto space-y-1.5 pt-3">
-        {race && <ReportingBar pct={race.reportingPct} />}
+        {race && counted && <ReportingBar pct={race.reportingPct} />}
         {race?.status === 'projected' && race.projectionSource && <p className="text-[11px] text-muted">{t('race.projectedBy', { src: race.projectionSource })}</p>}
         {race?.status === 'certified' && race.certificationSource && (
           <a href={race.certificationSource} target="_blank" rel="noreferrer" className="text-[11px] text-accent hover:underline">{t('race.certifiedBy')}</a>
         )}
-        {race?.updatedAt && <p className="text-[11px] text-muted">{t('race.updated', { t: date(race.updatedAt) })}</p>}
+        {race?.updatedAt && counted && <p className="text-[11px] text-muted">{t('race.updated', { t: date(race.updatedAt) })}</p>}
       </footer>
     </article>
   )

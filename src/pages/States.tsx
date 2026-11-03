@@ -6,12 +6,17 @@ import { raceKey, useRaces } from '@/hooks/useElections'
 import { GOVERNOR_STATES, SENATE_SEATS, STATES, STATE_BY_CODE } from '@/data/states'
 import { displayStatus } from '@/lib/race'
 import { USMap } from '@/components/USMap'
-import { RaceCard } from '@/components/election'
+import { EmptyRace, PartyDot, StatusBadge } from '@/components/election'
+import { RaceRanking } from '@/components/Ranking'
+import { PollsBlock } from '@/components/PollsBlock'
+import { useSenate } from '@/services/senate'
+import { hasCountedVotes } from '@/lib/race'
+import type { Race } from '@/services/types'
 import { InfoTip } from '@/components/InfoTip'
 import { PageHeader, SearchInput } from '@/components/PageHeader'
 import { DataBanner } from '@/components/DataPanel'
 import { Card, CardBody } from '@/components/ui/card'
-import { HouseTable } from './House'
+import { houseRows, PagedHouseTable } from './House'
 import { cn } from '@/lib/utils'
 
 export function StatesIndex() {
@@ -53,6 +58,30 @@ export function StatesIndex() {
   )
 }
 
+function RaceSection({ office, state, special, race, status }: { office: 'senate' | 'governor'; state: string; special?: boolean; race?: Race; status: ReturnType<typeof displayStatus> }) {
+  const { t, date } = useI18n()
+  const senate = useSenate()
+  const inc = office === 'senate' ? senate.incumbent(state, !!special) : null
+  const counted = hasCountedVotes(race)
+  return (
+    <article className="rounded-xl border border-line bg-surface p-5">
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <p className="eyebrow">{t(`race.${office}`)}{special ? ` · ${t('race.special')}` : ''}</p>
+          <h3 className="mt-0.5 font-serif text-2xl font-semibold">{STATE_BY_CODE[state].name}</h3>
+          {inc && <p className="mt-1 flex items-center gap-1.5 text-xs text-muted"><PartyDot party={inc.party} />{t('race.holder', { name: `${inc.first} ${inc.last}` })} · senate.gov</p>}
+        </div>
+        <StatusBadge status={status} />
+      </header>
+      <div className="mt-4">
+        {counted && race ? <RaceRanking race={race} /> : <EmptyRace state={state} status={status} race={race} />}
+        {race?.updatedAt && counted && <p className="mt-2 text-[11px] text-muted">{t('race.updated', { t: date(race.updatedAt) })}</p>}
+      </div>
+      <div className="mt-5 border-t border-line/60 pt-4"><PollsBlock kind={office} state={state} limit={3} expandable /></div>
+    </article>
+  )
+}
+
 export function StateDetail() {
   const { code = '' } = useParams()
   const { t, num } = useI18n()
@@ -62,6 +91,7 @@ export function StateDetail() {
   const seats = SENATE_SEATS.filter((x) => x.state === s.code)
   const gov = GOVERNOR_STATES.includes(s.code)
   const st = (r: Parameters<typeof displayStatus>[0]) => displayStatus(r, coverage, !!feed.snapshot, s.code)
+  const covered = coverage.has(s.code)
   return (
     <>
       <DataBanner />
@@ -71,7 +101,7 @@ export function StateDetail() {
             [t('race.senate'), seats.length ? num(seats.length) : '—'],
             [t('race.governor'), gov ? t('common.yes') : t('common.no')],
             [t('states.houseDelegation'), num(s.houseSeats)],
-            [t('map.coverage'), feed.snapshot ? (coverage.has(s.code) ? t('map.covered') : t('map.notCovered')) : '—'],
+            [t('map.coverage'), feed.snapshot ? (covered ? t('map.covered') : t('map.notCovered')) : '—'],
           ].map(([k, v]) => <div key={k}><dt className="eyebrow">{k}</dt><dd className="num mt-1 font-serif text-2xl font-semibold">{v}</dd></div>)}
         </dl>
       </PageHeader>
@@ -79,16 +109,16 @@ export function StateDetail() {
         <div className="min-w-0 space-y-6">
           <section>
             <h2 className="mb-3 flex items-center gap-2 font-serif text-2xl font-semibold">{t('states.racesHere')}<InfoTip term="resultTypes" /></h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {seats.map((x) => { const r = map.get(raceKey('senate', s.code, null, x.special)); return <RaceCard key={String(x.special)} office="senate" state={s.code} special={x.special} heldBy={x.heldBy} race={r} status={st(r)} /> })}
-              {gov && (() => { const r = map.get(raceKey('governor', s.code)); return <RaceCard office="governor" state={s.code} race={r} status={st(r)} /> })()}
+            <div className="space-y-4">
+              {seats.map((x) => { const r = map.get(raceKey('senate', s.code, null, x.special)); return <RaceSection key={String(x.special)} office="senate" state={s.code} special={x.special} race={r} status={st(r)} /> })}
+              {gov && (() => { const r = map.get(raceKey('governor', s.code)); return <RaceSection office="governor" state={s.code} race={r} status={st(r)} /> })()}
             </div>
             {!seats.length && <p className="mt-2 text-sm text-muted">{t('states.noSenate')}</p>}
             {!gov && <p className="mt-1 text-sm text-muted">{t('states.noGov')}</p>}
           </section>
           <section>
             <h2 className="mb-3 flex items-center gap-2 font-serif text-2xl font-semibold">{t('house.title')}<InfoTip term="district" /></h2>
-            <HouseTable states={[s]} />
+            <PagedHouseTable rows={houseRows([s])} />
           </section>
         </div>
         <aside><Card className="sticky top-20"><CardBody><USMap showLayers={false} selected={s.code} /></CardBody></Card></aside>

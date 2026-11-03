@@ -47,3 +47,5 @@ export const HOUSE = { total: 435, majority: 218 }
 export const GOVERNOR_STATES = ['AL','AK','AZ','AR','CA','CO','CT','FL','GA','HI','ID','IL','IA','KS','ME','MD','MA','MI','MN','NE','NV','NH','NM','NY','OH','OK','OR','PA','RI','SC','SD','TN','TX','VT','WI','WY']
 
 export const ELECTION_DATE = '2026-11-03'
+
+export const STATE_BY_NAME = Object.fromEntries(STATES.map((s) => [s.name, s])) as Record<string, StateInfo>

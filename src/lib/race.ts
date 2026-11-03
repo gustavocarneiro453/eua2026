@@ -1,10 +1,14 @@
 import type { Candidate, Party, Race, ResultStatus } from '@/services/types'
 
-export type DisplayStatus = ResultStatus | 'notCovered'
+import { getState } from '@/services/elections'
+
+export type DisplayStatus = ResultStatus | 'notCovered' | 'unavailable'
 
 export function displayStatus(race: Race | undefined, coverage: Set<string>, hasSnapshot: boolean, state: string): DisplayStatus {
   if (race) return race.status
   if (hasSnapshot && coverage.size && !coverage.has(state)) return 'notCovered'
+  // Components re-render on feed changes, so reading the store here is safe.
+  if (!hasSnapshot && getState().status === 'error') return 'unavailable'
   return 'no_data'
 }
 
@@ -36,3 +40,23 @@ export function sortedCandidates(race: Race) {
 export function winLabelKey(status: Race['status']) {
   return status === 'official' ? 'race.win.official' : status === 'certified' ? 'race.win.certified' : 'race.win.projected'
 }
+
+export interface RankedCandidate { c: Candidate; /** competition rank (1,1,3…); null when votes are unknown */ rank: number | null; tied: boolean }
+
+/** Candidates by votes, descending. Unknown votes go last and are never ranked. Not a call of a winner. */
+export function rankCandidates(race: Race | undefined): RankedCandidate[] {
+  if (!race) return []
+  const known = race.candidates.filter((c) => c.votes != null).sort((a, b) => (b.votes as number) - (a.votes as number) || a.name.localeCompare(b.name))
+  const unknown = race.candidates.filter((c) => c.votes == null)
+  const out: RankedCandidate[] = []
+  known.forEach((c, i) => {
+    const prev = out[i - 1]
+    const same = i > 0 && prev.c.votes === c.votes
+    const rank = same ? prev.rank : i + 1
+    if (same) prev.tied = true
+    out.push({ c, rank, tied: same })
+  })
+  return [...out, ...unknown.map((c) => ({ c, rank: null, tied: false }))]
+}
+
+export const hasCountedVotes = (race: Race | undefined) => !!race && race.candidates.some((c) => (c.votes ?? 0) > 0)
