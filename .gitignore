@@ -3,3 +3,5 @@ dist
 .env
 .env.local
 .wrangler
+.dev-data
+.env.local

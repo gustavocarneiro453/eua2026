@@ -21,6 +21,8 @@ function makeApi(lang: Lang) {
   const pf = new Intl.NumberFormat(locale, { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 })
   const dtf = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' })
   const tf = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  // Prices are always in Brazilian reais, whatever the interface language
+  const brlf = new Intl.NumberFormat(locale, { style: 'currency', currency: 'BRL' })
   const df = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
   const rtf = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
   const t = (key: DictKey, vars?: Record<string, string | number>) => {
@@ -34,6 +36,8 @@ function makeApi(lang: Lang) {
     /** null/undefined → "—" (missing is never 0) */
     num: (n: number | null | undefined) => (n == null ? '—' : nf.format(n)),
     dec: (n: number) => df.format(n),
+    /** integer cents → "R$ 7,00" */
+    brl: (cents: number) => brlf.format(cents / 100),
     /** input 0–100 */
     pct: (n: number | null | undefined) => (n == null ? '—' : pf.format(n / 100)),
     date: (d: string | number | Date | null | undefined) => (d == null ? '—' : dtf.format(new Date(d))),

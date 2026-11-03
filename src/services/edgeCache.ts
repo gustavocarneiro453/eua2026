@@ -59,3 +59,9 @@ export async function serveCached<T extends Stamped>(o: {
     return jsonResponse({ error: e instanceof Error ? e.message : 'upstream_unavailable' }, 'error', 30, 502)
   }
 }
+
+/** Drops a cached copy right after a write, so the change is visible on the next request (this data center only). */
+export async function invalidateEdgeCache(request: Request, cacheKey: string) {
+  const cache = (caches as unknown as { default: Cache & { delete(r: Request): Promise<boolean> } }).default
+  await cache.delete(new Request(`${new URL(request.url).origin}/__edge-cache/${cacheKey}`))
+}

@@ -4,6 +4,9 @@ import { Menu, X } from 'lucide-react'
 import { useI18n, type Lang } from '@/i18n'
 import { useFeed } from '@/hooks/useElections'
 import { cn } from '@/lib/utils'
+import { AdSlots } from '@/components/AdSlots'
+import { AdReturnBanner } from '@/components/AdReturnBanner'
+import { BidDialogProvider } from '@/components/BidDialog'
 import type { DictKey } from '@/i18n/dict'
 
 const NAV: [string, DictKey][] = [
@@ -60,7 +63,10 @@ export function Layout() {
   const link = ({ isActive }: { isActive: boolean }) =>
     cn('relative px-3 py-2 text-sm font-medium transition-colors', isActive ? 'text-ink after:absolute after:inset-x-3 after:-bottom-[13px] after:h-0.5 after:bg-accent' : 'text-muted hover:text-ink')
   return (
+    <BidDialogProvider>
     <div className="flex min-h-screen flex-col">
+      <AdReturnBanner />
+      <AdSlots />
       <header className="sticky top-0 z-40 border-b border-line bg-bg/90 backdrop-blur">
         <div className="container-x flex h-14 items-center gap-4">
           <Logo />
@@ -91,9 +97,10 @@ export function Layout() {
       <footer className="mt-16 border-t border-line">
         <div className="container-x flex flex-col gap-3 py-8 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3"><Logo /><span className="max-w-md">{t('footer.note')}</span></div>
-          <span>{t('footer.rights')}</span>
+          <span className="flex flex-wrap items-center gap-x-4 gap-y-1"><Link to="/anuncie" className="hover:text-ink hover:underline">{t('nav.advertise')}</Link><span>{t('footer.rights')}</span></span>
         </div>
       </footer>
     </div>
+    </BidDialogProvider>
   )
 }
