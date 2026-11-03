@@ -108,7 +108,7 @@ export function toSnapshot(payloads: OaPayload[], replayYear: number | null): Sn
   return {
     source: { name: 'Open America', url: OA_DOCS, attribution: OA_ATTRIBUTION },
     generatedAt: asOf,
-    coverage: OA_COVERAGE,
+    coverage: [...new Set([...OA_COVERAGE, ...payloads.flatMap((p) => Object.keys(p.races).map((k) => k.slice(0, 2).toUpperCase()))])].sort(),
     isDemo: replayYear != null,
     replayYear,
     callsSupported: false,

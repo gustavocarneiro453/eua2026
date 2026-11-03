@@ -15,6 +15,7 @@ const STATUS_STYLE: Record<DisplayStatus, { variant: 'neutral' | 'live' | 'succe
   no_data: { variant: 'neutral', Icon: CircleDashed },
   notCovered: { variant: 'neutral', Icon: Ban },
   unavailable: { variant: 'warn', Icon: AlertTriangle },
+  notStarted: { variant: 'neutral', Icon: Clock },
   counting: { variant: 'warn', Icon: Clock },
   projected: { variant: 'accent', Icon: Megaphone },
   official: { variant: 'success', Icon: CheckCircle2 },
@@ -97,7 +98,7 @@ export function StateOfficeLink({ state }: { state: string }) {
   const { t } = useI18n()
   const o = STATE_OFFICES[state]
   if (!o) return null
-  return <a href={o.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-accent hover:underline">{o.name}<ExternalLink className="h-3 w-3" /><span className="sr-only">{t('news.opensNew')}</span></a>
+  return <a href={o.results ?? o.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-accent hover:underline">{o.name}<ExternalLink className="h-3 w-3" /><span className="sr-only">{t('news.opensNew')}</span></a>
 }
 
 /** What a race shows when it has no votes yet: the reason, plus any real candidate names the state published. */
@@ -107,7 +108,7 @@ export function EmptyRace({ state, status, race, compact }: { state: string; sta
     <div className="mt-3 space-y-3">
       <div className="rounded-lg border border-dashed border-line px-3 py-3 text-xs leading-relaxed text-muted">
         {status === 'notCovered' ? <>{t('race.notCoveredMsg')} <StateOfficeLink state={state} /></>
-          : status === 'unavailable' ? t('race.unavailableMsg') : t('race.await')}
+          : status === 'unavailable' ? t('race.unavailableMsg') : status === 'notStarted' ? t('race.notStartedMsg') : t('race.await')}
       </div>
       {race && race.candidates.length > 0 && (
         <div><p className="eyebrow mb-1">{t('race.listed')}</p>

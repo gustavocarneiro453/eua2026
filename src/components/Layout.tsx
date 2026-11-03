@@ -18,6 +18,7 @@ export function LiveIndicator() {
   const feed = useFeed()
   const [label, color, pulse] =
     feed.status === 'not_configured' ? [t('live.notConfigured'), 'text-muted', false]
+    : feed.status === 'not_started' ? [t('live.notStarted'), 'text-muted', false]
     : feed.snapshot?.isDemo ? [t('live.demo'), 'text-amber-400', false]
     : feed.stale ? [t('live.stale'), 'text-amber-400', false]
     : feed.status === 'error' ? [t('live.offline'), 'text-amber-400', false]

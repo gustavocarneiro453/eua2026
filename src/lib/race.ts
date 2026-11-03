@@ -2,9 +2,10 @@ import type { Candidate, Party, Race, ResultStatus } from '@/services/types'
 
 import { getState } from '@/services/elections'
 
-export type DisplayStatus = ResultStatus | 'notCovered' | 'unavailable'
+export type DisplayStatus = ResultStatus | 'notCovered' | 'unavailable' | 'notStarted'
 
 export function displayStatus(race: Race | undefined, coverage: Set<string>, hasSnapshot: boolean, state: string): DisplayStatus {
+  if (getState().status === 'not_started') return 'notStarted' // the count has not begun: nothing was requested yet
   if (race) return race.status
   if (hasSnapshot && coverage.size && !coverage.has(state)) return 'notCovered'
   // Components re-render on feed changes, so reading the store here is safe.

@@ -3,7 +3,8 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { I18nProvider } from '@/i18n'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Layout } from '@/components/Layout'
-import { startFeed } from '@/services/elections'
+import { holdFeed, startFeed } from '@/services/elections'
+import { initCountdown, onBefore, onStarted } from '@/services/countdown'
 import Overview from '@/pages/Overview'
 
 const Senate = lazy(() => import('@/pages/Senate'))
@@ -16,7 +17,12 @@ const News = lazy(() => import('@/pages/News'))
 const Advertise = lazy(() => import('@/pages/Advertise'))
 
 export default function App() {
-  useEffect(() => { startFeed() }, [])
+  // Results are only requested once the countdown has ended (the target comes from /api/config).
+  useEffect(() => {
+    const offBefore = onBefore(holdFeed), offStart = onStarted(startFeed)
+    initCountdown()
+    return () => { offBefore(); offStart() }
+  }, [])
   return (
     <I18nProvider>
       <TooltipProvider delayDuration={150}>

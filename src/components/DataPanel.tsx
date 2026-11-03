@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { useI18n } from '@/i18n'
 import { useFeed, useUpdates, useRaces } from '@/hooks/useElections'
 import { feedConfig, refreshFeed } from '@/services/elections'
+import { useCountdown } from '@/services/countdown'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { raceLabel } from '@/components/election'
@@ -30,12 +31,14 @@ function Strip({ children }: { children: React.ReactNode }) {
 export function DataPanel() {
   const { t, date, ago } = useI18n()
   const feed = useFeed()
+  const cd = useCountdown()
   useNow()
   const src = feed.snapshot?.source
   return (
     <Card>
       <CardHeader><h2 className="flex items-center gap-2 text-sm font-semibold"><Database className="h-4 w-4 text-muted" />{t('data.title')}</h2></CardHeader>
       <CardBody className="space-y-4 text-sm">
+        {feed.status === 'not_started' && <p className="rounded-lg bg-surface-2 p-3 text-xs leading-relaxed text-muted">{t('data.notStarted', { t: date(cd.targetMs) })}</p>}
         {feed.status === 'not_configured' && <p className="rounded-lg bg-surface-2 p-3 text-xs leading-relaxed text-muted">{t('data.notConfigured')}</p>}
         <dl className="grid grid-cols-1 gap-3">
           <div><dt className="eyebrow">{t('data.source')}</dt>
@@ -45,9 +48,9 @@ export function DataPanel() {
             <dd className="num mt-1">{feed.lastSuccessAt ? <>{date(feed.lastSuccessAt)} <span className="text-xs text-muted">({ago(feed.lastSuccessAt)})</span></> : <span className="text-muted">{t('data.never')}</span>}</dd></div>
           {feed.snapshot?.generatedAt && <div><dt className="eyebrow">{t('data.generated')}</dt><dd className="num mt-1">{date(feed.snapshot.generatedAt)}</dd></div>}
         </dl>
-        {feed.status !== 'not_configured' && (
+        {feed.status !== 'not_configured' && feed.status !== 'not_started' && (
           <div className="flex items-center justify-between gap-3 border-t border-line pt-3">
-            <span className="text-xs text-muted">{t('data.poll', { n: feed.snapshot?.sourceState === 'waiting' || feed.snapshot?.sourceState === 'final' ? '10 min' : `${feedConfig.pollMs / 1000} s` })}</span>
+            <span className="text-xs text-muted">{t('data.poll', { n: feed.snapshot?.sourceState === 'final' || (feed.snapshot?.sourceState === 'waiting' && feed.snapshot.races.length === 0) ? '10 min' : `${feedConfig.pollMs / 1000} s` })}</span>
             <Button variant="outline" size="sm" onClick={() => refreshFeed()}><RefreshCw className="h-3.5 w-3.5" />{t('data.refresh')}</Button>
           </div>
         )}

@@ -59,7 +59,8 @@ export interface Snapshot {
   races: Race[]
 }
 
-export type FeedStatus = 'not_configured' | 'loading' | 'ok' | 'error'
+/** not_started: the count has not begun yet, so no results source is queried */
+export type FeedStatus = 'not_configured' | 'not_started' | 'loading' | 'ok' | 'error'
 
 export interface FeedState {
   status: FeedStatus

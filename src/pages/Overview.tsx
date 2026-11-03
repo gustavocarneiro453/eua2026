@@ -11,6 +11,7 @@ import { USMap } from '@/components/USMap'
 import { InfoTip } from '@/components/InfoTip'
 import { RaceCard } from '@/components/election'
 import { NewsList } from '@/components/NewsList'
+import { Countdown } from '@/components/Countdown'
 import { PollsBlock } from '@/components/PollsBlock'
 import { DataBanner, DataPanel, UpdatesFeed } from '@/components/DataPanel'
 import type { TermKey } from '@/i18n/glossary'
@@ -77,6 +78,7 @@ export default function Overview() {
           <p className="mt-5 max-w-2xl text-base leading-relaxed text-ink/80 sm:text-lg">
             {t('hero.lede', { senate: SENATE_SEATS.length, house: HOUSE.total, gov: GOVERNOR_STATES.length })}
           </p>
+          <div className="mt-6"><Countdown /></div>
           <div className="mt-8 grid max-w-2xl grid-cols-3 gap-6 border-t border-line pt-6">
             <Big value={num(SENATE_SEATS.length)} label={t('sum.senate')} />
             <Big value={num(HOUSE.total)} label={t('race.house')} />

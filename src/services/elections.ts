@@ -1,5 +1,6 @@
 import type { FeedState, Race, Snapshot, UpdateEvent } from './types'
 
+import { fallbackTargetMs } from '@/config/election'
 import { OA_OFFICES, oaUrl, toSnapshot, validate, type OaPayload } from './openamerica'
 
 /**
@@ -55,7 +56,7 @@ function set(patch: Partial<FeedState>) {
 // Restore last valid snapshot so a reload during an outage still shows data (flagged stale).
 try {
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
-  if (ENABLED && saved && isSnapshot(saved.snapshot)) {
+  if (ENABLED && saved && isSnapshot(saved.snapshot) && fallbackTargetMs() <= Date.now()) {
     state = { ...state, snapshot: saved.snapshot, lastSuccessAt: saved.at, stale: Date.now() - saved.at > STALE_AFTER_MS }
   }
 } catch { /* storage unavailable */ }
@@ -118,8 +119,11 @@ async function fetchOnce(): Promise<void> {
       } else {
         set({ status: 'ok', lastSuccessAt: now, error: null, stale: false })
       }
-      const ss = state.snapshot?.sourceState
-      nextDelay = Math.max(ss === 'waiting' || ss === 'final' ? IDLE_MS : POLL_MS, ...results.map((r) => r.minDelay))
+      // Provider's schedule: every 60 s while races exist and are not final (even before the first vote, so the
+      // first results show up within a minute); every 10 min only when no race exists yet, or once everything is final.
+      const snap = state.snapshot
+      const idle = !snap || snap.sourceState === 'final' || (snap.sourceState === 'waiting' && snap.races.length === 0)
+      nextDelay = Math.max(idle ? IDLE_MS : POLL_MS, ...results.map((r) => r.minDelay))
     } catch (e) {
       failures++
       const ra = (e as { retryAfter?: number }).retryAfter ?? 0
@@ -145,9 +149,17 @@ function schedule() {
 }
 
 let started = false
+/** The count has not started: keep the results source untouched and drop any older copy. */
+export function holdFeed() {
+  if (started || !ENABLED) return
+  set({ status: 'not_started', snapshot: null, lastSuccessAt: null, lastAttemptAt: null, error: null, stale: false })
+}
+
+/** Called when the countdown reaches zero (or if it already had): from now on the sources are polled. */
 export function startFeed() {
   if (started || !ENABLED) return
   started = true
+  set({ status: 'loading' })
   fetchOnce().then(schedule)
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && (!state.lastAttemptAt || Date.now() - state.lastAttemptAt > POLL_MS)) {
@@ -161,7 +173,7 @@ export function startFeed() {
   }, 15_000)
 }
 
-export const refreshFeed = () => fetchOnce()
+export const refreshFeed = () => (started ? fetchOnce() : Promise.resolve())
 export const subscribe = (l: () => void) => { listeners.add(l); return () => { listeners.delete(l) } }
 export const getState = () => state
 export const getEvents = () => events

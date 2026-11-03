@@ -4,6 +4,9 @@ import { useI18n } from '@/i18n'
 import { useFeed } from '@/hooks/useElections'
 import { OA_ATTRIBUTION, OA_BASE, OA_COVERAGE, OA_DOCS, OA_OFFICES, oaUrl } from '@/services/openamerica'
 import { feedConfig } from '@/services/elections'
+import { useCountdown } from '@/services/countdown'
+import { COUNTDOWN_SOURCE_URL } from '@/config/election'
+import { STATE_OFFICES } from '@/data/stateOffices'
 import { EBC_FEED, EBC_SITE, EBC_TERMS, GDELT_SITE } from '@/services/newsNormalize'
 import { SENATE_XML } from '@/services/senateNormalize'
 import { VOTEHUB_API, VOTEHUB_SITE } from '@/services/pollsNormalize'
@@ -56,7 +59,10 @@ export default function DataSources() {
   const news = useNews(lang)
   const newsPt = useNews('pt') // Agência Brasil is part of the Portuguese feed
   const ebcStatus = newsPt.payload?.sources?.find((s) => s.id === 'ebc')
-  const covered = new Set(OA_COVERAGE)
+  const cd = useCountdown()
+  // Integrated-feed states = the source's documented list + any state that shows up in its live payload
+  const covered = new Set([...OA_COVERAGE, ...(feed.snapshot?.coverage ?? [])])
+  const fmtTarget = new Intl.DateTimeFormat(lang === 'pt' ? 'pt-BR' : 'en-US', { dateStyle: 'medium', timeStyle: 'short' })
   const never = <span className="text-muted">{t('src.notYet')}</span>
   const copyOf = (iso?: string) => (iso ? <span className="num">{t('src.fetchedAt', { t: date(iso) })}</span> : never)
   const stateKey: DictKey =
@@ -77,6 +83,11 @@ export default function DataSources() {
       ),
       links: [{ href: OA_BASE, label: 'src.site' }, { href: OA_DOCS, label: 'src.docs' }, { href: `${OA_BASE}/terms/`, label: 'src.terms' }],
       extra: <Row label={t('dsrc.attr')}><span className="italic">“{OA_ATTRIBUTION}”</span></Row>,
+    },
+    {
+      id: 'cd', nameKey: 'src.cd.name', providesKey: 'src.cd.provides', cadenceKey: 'src.cd.cadence', natures: ['reference'],
+      endpoints: ['/api/config'], last: <span className="num">{fmtTarget.format(new Date(cd.targetMs))} · {cd.source === 'configured' ? t('cd.sourceConfigured') : t('src.cd.terms')}</span>,
+      links: [{ href: COUNTDOWN_SOURCE_URL, label: 'src.site' }],
     },
     {
       id: 'seat', nameKey: 'src.seat.name', providesKey: 'src.seat.provides', cadenceKey: 'src.seat.cadence', natures: ['official', 'certified'],
@@ -118,7 +129,7 @@ export default function DataSources() {
   const natures: Nature[] = ['official', 'preliminary', 'certified', 'poll', 'news', 'reference']
   const where: [DictKey, DictKey][] = [
     ['where.votes', 'where.v.votes'], ['where.rank', 'where.v.rank'], ['where.house', 'where.v.house'], ['where.senate', 'where.v.senate'], ['where.seats', 'where.v.seats'],
-    ['where.polls', 'where.v.polls'], ['where.news', 'where.v.news'], ['where.coverage', 'where.v.coverage'], ['where.offices', 'where.v.offices'],
+    ['where.countdown', 'where.v.countdown'], ['where.polls', 'where.v.polls'], ['where.news', 'where.v.news'], ['where.coverage', 'where.v.coverage'], ['where.offices', 'where.v.offices'],
   ]
 
   return (
@@ -182,6 +193,22 @@ export default function DataSources() {
             </ul>
           </div>
         ))}
+      </Section>
+
+      <Section title={t('dsrc.portals')}>
+        <p className="text-sm leading-relaxed text-ink/80">{t('dsrc.portalsNote')}</p>
+        <ul className="mt-3 grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
+          {STATES.filter((s) => !covered.has(s.code) && STATE_OFFICES[s.code]).map((s) => {
+            const o = STATE_OFFICES[s.code]
+            return (
+              <li key={s.code} className="flex flex-wrap items-baseline gap-x-2">
+                <span className="text-ink/90">{s.name}:</span>
+                <Ext href={o.results ?? o.url}>{o.name}</Ext>
+                {o.results && !o.resultsVerified || !o.results ? <span className="text-[11px] text-muted">({t('dsrc.unverified')})</span> : null}
+              </li>
+            )
+          })}
+        </ul>
       </Section>
 
       <Section title={t('gaps.title')}>
