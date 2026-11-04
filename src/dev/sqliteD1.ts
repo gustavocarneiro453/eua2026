@@ -11,6 +11,10 @@ export function openDevD1(file: string | ':memory:', schemaPath = path.resolve(p
   if (file !== ':memory:') fs.mkdirSync(path.dirname(file), { recursive: true })
   const db = new DatabaseSync(file)
   db.exec(fs.readFileSync(schemaPath, 'utf8'))
+  // Local files created before logos existed: add the columns (production databases use the ALTERs in schema.sql).
+  const cols = (db.prepare('PRAGMA table_info(ads)').all() as { name: string }[]).map((c) => c.name)
+  if (!cols.includes('logo_domain')) db.exec('ALTER TABLE ads ADD COLUMN logo_domain TEXT')
+  if (!cols.includes('logo_src')) db.exec('ALTER TABLE ads ADD COLUMN logo_src TEXT')
   const stmt = (sql: string, params: unknown[] = []): D1Stmt => ({
     bind: (...v) => stmt(sql, v),
     first: async <T>() => ((db.prepare(sql).get(...(params as never[])) as T | undefined) ?? null),

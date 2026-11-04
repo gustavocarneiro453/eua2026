@@ -17,7 +17,7 @@ export const onRequestPost = async ({ request, env }: Ctx) => {
   let body: any
   try { body = await request.json() } catch { return json({ error: 'invalid_json' }, 400) }
   if (body?.action === 'list') {
-    const { results } = await db.prepare('SELECT id, slot, bid_cents, status, advertiser, title, url, contact_email, payment_id, created_at, live_at, ended_at FROM ads ORDER BY created_at DESC LIMIT 100').all()
+    const { results } = await db.prepare('SELECT id, slot, bid_cents, status, advertiser, title, url, contact_email, logo_domain, logo_src, payment_id, created_at, live_at, ended_at FROM ads ORDER BY created_at DESC LIMIT 100').all()
     return json({ ads: results ?? [] })
   }
   if (body?.action === 'remove' && (body.slot === 1 || body.slot === 2)) {

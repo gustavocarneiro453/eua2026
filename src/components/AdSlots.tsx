@@ -3,6 +3,7 @@ import { ArrowUpRight } from 'lucide-react'
 import { useI18n } from '@/i18n'
 import { type AdSlotView, useAds } from '@/services/ads'
 import { useBidDialog } from '@/components/BidDialog'
+import { CompanyLogo } from '@/components/CompanyLogo'
 import { cn } from '@/lib/utils'
 
 /** One ad slot: discreet card, clearly labeled as advertisement, with the current bid and how to beat it. */
@@ -29,10 +30,13 @@ export function AdCard({ slot, view, preview = false }: { slot: 1 | 2; view: AdS
   }
   return (
     <div className={cn('flex items-center justify-between gap-3 rounded-lg border border-line bg-surface px-3 py-2', !preview && 'transition-colors hover:border-line/80')}>
-      <a href={ad.url} target="_blank" rel="sponsored nofollow noopener noreferrer" className="group min-w-0 flex-1" aria-label={`${t('ads.label')}: ${ad.title}`} onClick={preview ? (e) => e.preventDefault() : undefined}>
+      <a href={ad.url} target="_blank" rel="sponsored nofollow noopener noreferrer" className="group flex min-w-0 flex-1 items-center gap-3" aria-label={`${t('ads.label')}: ${ad.title}`} onClick={preview ? (e) => e.preventDefault() : undefined}>
+        <CompanyLogo name={ad.advertiser} logo={ad.logo} size={36} />
+        <div className="min-w-0 flex-1">
         <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">{t('ads.label')}<span className="normal-case tracking-normal font-normal">· {ad.advertiser}</span></p>
         <p className="truncate text-sm font-medium text-ink group-hover:text-accent">{ad.title}<ArrowUpRight className="ml-0.5 inline h-3 w-3 align-[-1px] text-muted" /></p>
         <p className="hidden truncate text-xs text-muted sm:block">{ad.body ? `${ad.body} · ` : ''}{ad.domain}</p>
+        </div>
       </a>
       {!preview && (
         <div className="flex shrink-0 flex-col items-end gap-1">

@@ -32,7 +32,7 @@ export default function Advertise() {
           <CardHeader><h2 className="font-serif text-xl font-semibold">{t('adv.now')}</h2></CardHeader>
           <CardBody className="grid gap-3 sm:grid-cols-2">
             {ads.slots.length ? ads.slots.map((s) => (
-              <div key={s.slot} className="space-y-2">
+              <div key={s.slot} className="min-w-0 space-y-2">
                 <AdCard slot={s.slot} view={s} />
                 <Button size="sm" variant="outline" onClick={() => open(s.slot)}>{t('adv.bid')} · {t('ads.dialog.title', { n: s.slot })}</Button>
               </div>
@@ -41,7 +41,7 @@ export default function Advertise() {
         </Card>}
         <Block title={t('adv.how')} keys={['adv.how1', 'adv.how2', 'adv.how3', 'adv.how4', 'adv.how5']} vars={vars} />
         <Block title={t('adv.money')} keys={['adv.money1', 'adv.money2', 'adv.money3']} />
-        <Block title={t('adv.content')} keys={['adv.content1', 'adv.content2', 'adv.content3', 'adv.content4']} />
+        <Block title={t('adv.content')} keys={['adv.content1', 'adv.content2', 'adv.content3', 'adv.content4', 'adv.content5']} />
         <Block title={t('adv.data')} keys={['adv.data1']} />
       </div>
     </>

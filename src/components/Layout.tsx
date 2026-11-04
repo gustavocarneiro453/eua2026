@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { AdSlots } from '@/components/AdSlots'
 import { AdReturnBanner } from '@/components/AdReturnBanner'
 import { BidDialogProvider } from '@/components/BidDialog'
+import { useLogoConfig } from '@/services/logos'
 import type { DictKey } from '@/i18n/dict'
 
 const NAV: [string, DictKey][] = [
@@ -58,6 +59,7 @@ function Logo() {
 
 export function Layout() {
   const { t } = useI18n()
+  const logoCfg = useLogoConfig()
   const [open, setOpen] = useState(false)
   const { pathname, hash } = useLocation()
   useEffect(() => { setOpen(false); if (!hash) window.scrollTo(0, 0) }, [pathname])
@@ -98,7 +100,7 @@ export function Layout() {
       <footer className="mt-16 border-t border-line">
         <div className="container-x flex flex-col gap-3 py-8 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3"><Logo /><span className="max-w-md">{t('footer.note')}</span></div>
-          <span className="flex flex-wrap items-center gap-x-4 gap-y-1"><Link to="/anuncie" className="hover:text-ink hover:underline">{t('nav.advertise')}</Link><span>{t('footer.rights')}</span></span>
+          <span className="flex flex-wrap items-center gap-x-4 gap-y-1"><Link to="/anuncie" className="hover:text-ink hover:underline">{t('nav.advertise')}</Link>{logoCfg.logodevToken && <a href="https://logo.dev" target="_blank" rel="noopener" className="hover:text-ink hover:underline">Logos provided by Logo.dev</a>}<span>{t('footer.rights')}</span></span>
         </div>
       </footer>
     </div>

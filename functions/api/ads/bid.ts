@@ -2,6 +2,7 @@
 import { createPendingAd, markFailed, setPreference, validateAdInput } from '../../../src/services/auction'
 import { type Ctx, getDb, json, paymentsMode, sameOrigin, siteOrigin } from '../../../src/services/adsHttp'
 import { createCheckout } from '../../../src/services/mercadopago'
+import { getSiteLogo } from '../../../src/services/logoStore'
 
 export const onRequestPost = async ({ request, env }: Ctx) => {
   const db = getDb(env)
@@ -16,6 +17,9 @@ export const onRequestPost = async ({ request, env }: Ctx) => {
   try { raw = JSON.parse(text) } catch { return json({ error: 'invalid_json' }, 400) }
   const v = validateAdInput(raw)
   if (!v.ok) return json({ error: 'invalid_input', errors: v.errors }, 422)
+  // A logo taken from the company's website must actually be stored; otherwise the ad would show a broken image.
+  // (Logo.dev / Brandfetch logos are loaded by each visitor's browser and fall back to a monogram on their own.)
+  if (v.value.logo?.src === 'site' && !(await getSiteLogo(db, v.value.logo.domain, false))?.found) v.value.logo = null
   const c = await createPendingAd(db, v.value)
   if (!c.ok) return json({ error: c.error, minNextBidCents: c.minNextBidCents }, c.error === 'bid_too_low' ? 409 : 429)
   const origin = siteOrigin(env, request)

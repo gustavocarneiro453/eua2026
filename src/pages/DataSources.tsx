@@ -121,6 +121,12 @@ export default function DataSources() {
       extra: <Row label={t('dsrc.attr')}>{t('src.ebc.terms')}</Row>,
     },
     {
+      id: 'logo', nameKey: 'src.logo.name', providesKey: 'src.logo.provides', cadenceKey: 'src.logo.cadence', natures: ['reference'],
+      endpoints: ['/api/logo/search', '/api/logo/site', 'https://img.logo.dev/<domain>', 'https://cdn.brandfetch.io/domain/<domain>'], last: <span className="text-muted">{t('src.onDemand')}</span>,
+      links: [{ href: 'https://logo.dev', label: 'src.site' }, { href: 'https://docs.logo.dev', label: 'src.docs' }, { href: 'https://logo.dev/terms', label: 'src.terms' }, { href: 'https://brandfetch.com/developers', label: 'src.docs' }, { href: 'https://www.wikidata.org/wiki/Wikidata:Licensing', label: 'src.terms' }],
+      extra: <Row label={t('dsrc.attr')}>{t('src.logo.terms')}</Row>,
+    },
+    {
       id: 'ref', nameKey: 'src.ref.name', providesKey: 'src.ref.provides', cadenceKey: 'src.ref.cadence', natures: ['reference'], last: <span className="text-muted">{t('common.dash')}</span>,
       links: [{ href: 'https://www.senate.gov/', label: 'src.site' }, { href: 'https://www.census.gov/', label: 'src.site' }],
     },

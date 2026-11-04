@@ -5,6 +5,8 @@ import { useI18n } from '@/i18n'
 import { adsResource, BidError, parseAmountCents, submitBid, useAds } from '@/services/ads'
 import { Button } from '@/components/ui/button'
 import { AdCard } from '@/components/AdSlots'
+import { LogoPicker } from '@/components/LogoPicker'
+import type { AdLogo } from '@/services/auction'
 import { cn } from '@/lib/utils'
 import type { DictKey } from '@/i18n/dict'
 
@@ -34,10 +36,13 @@ export function BidDialogProvider({ children }: { children: ReactNode }) {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [f, setF] = useState({ advertiser: '', title: '', body: '', url: 'https://', email: '', amount: '', acceptTerms: false })
 
+  const [logo, setLogo] = useState<AdLogo | null>(null)
+  const [committedUrl, setCommittedUrl] = useState('')
+
   const view = ads.slots.find((s) => s.slot === slot)
   const min = view?.minNextBidCents ?? ads.rules.minBidCents
   const open = useCallback((s: Slot) => {
-    setSlot(s); setErrors({}); setTopError(''); setBusy(false)
+    setSlot(s); setErrors({}); setTopError(''); setBusy(false); setLogo(null); setCommittedUrl('')
     const mn = ads.slots.find((x) => x.slot === s)?.minNextBidCents ?? ads.rules.minBidCents
     setF((p) => ({ ...p, amount: (mn / 100).toFixed(2).replace('.', ',') })) // start at the minimum valid bid
     ref.current?.showModal()
@@ -49,6 +54,7 @@ export function BidDialogProvider({ children }: { children: ReactNode }) {
 
   const cents = parseAmountCents(f.amount)
   const preview = useMemo(() => ({ advertiser: f.advertiser.trim() || '…', title: f.title.trim() || '…', body: f.body.trim(), url: f.url, domain: (() => { try { return new URL(f.url).hostname.replace(/^www\./, '') } catch { return '' } })() }), [f.advertiser, f.title, f.body, f.url])
+  const previewAd = useMemo(() => ({ ...preview, logo }), [preview, logo])
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -64,7 +70,7 @@ export function BidDialogProvider({ children }: { children: ReactNode }) {
     if (Object.keys(errs).length) return
     setBusy(true)
     try {
-      const r = await submitBid({ slot, amountCents: cents!, advertiser: f.advertiser, title: f.title, body: f.body, url: f.url.trim(), email: f.email, acceptTerms: true })
+      const r = await submitBid({ slot, amountCents: cents!, advertiser: f.advertiser, title: f.title, body: f.body, url: f.url.trim(), email: f.email, acceptTerms: true, logo })
       window.location.assign(r.checkoutUrl)
     } catch (err) {
       setBusy(false)
@@ -100,13 +106,15 @@ export function BidDialogProvider({ children }: { children: ReactNode }) {
             <Field label={t('ads.f.advertiser')} error={errors.advertiser} hint={`${f.advertiser.length}/40`}><input className={input} maxLength={40} value={f.advertiser} onChange={set('advertiser')} /></Field>
             <Field label={t('ads.f.title')} error={errors.title} hint={`${f.title.length}/45`}><input className={input} maxLength={45} value={f.title} onChange={set('title')} /></Field>
           </div>
+          <LogoPicker advertiser={f.advertiser} url={f.url} committedUrl={committedUrl} logo={logo} onChange={setLogo}
+            onSuggestUrl={(u) => setF((p) => (!p.url || p.url === 'https://' ? { ...p, url: u } : p))} />
           <Field label={t('ads.f.body')} error={errors.body} hint={`${f.body.length}/100`}><input className={input} maxLength={100} value={f.body} onChange={set('body')} /></Field>
-          <Field label={t('ads.f.url')} error={errors.url}><input className={input} type="url" inputMode="url" value={f.url} onChange={set('url')} /></Field>
+          <Field label={t('ads.f.url')} error={errors.url}><input className={input} type="url" inputMode="url" value={f.url} onChange={set('url')} onBlur={() => setCommittedUrl(f.url)} /></Field>
           <Field label={t('ads.f.email')} error={errors.email}><input className={input} type="email" autoComplete="email" maxLength={120} value={f.email} onChange={set('email')} /></Field>
 
           <div>
             <p className="eyebrow mb-1.5">{t('ads.preview')}</p>
-            <AdCard slot={slot} view={{ slot, bidCents: cents ?? min, minNextBidCents: min, ad: preview }} preview />
+            <AdCard slot={slot} view={{ slot, bidCents: cents ?? min, minNextBidCents: min, ad: previewAd }} preview />
           </div>
 
           <div>

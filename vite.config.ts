@@ -34,6 +34,7 @@ function pagesFunctionsDev(): Plugin {
         env = {
           DB, MP_ACCESS_TOKEN: vars.MP_ACCESS_TOKEN || undefined, MP_WEBHOOK_SECRET: vars.MP_WEBHOOK_SECRET || undefined,
           ADMIN_TOKEN: vars.ADMIN_TOKEN || 'dev-admin', PAYMENTS_MODE: vars.MP_ACCESS_TOKEN ? undefined : 'mock', COUNTDOWN_TARGET: vars.COUNTDOWN_TARGET || undefined,
+          LOGODEV_SECRET_KEY: vars.LOGODEV_SECRET_KEY || undefined, LOGODEV_PUBLISHABLE_KEY: vars.LOGODEV_PUBLISHABLE_KEY || undefined, BRANDFETCH_CLIENT_ID: vars.BRANDFETCH_CLIENT_ID || undefined,
         }
         return env
       }

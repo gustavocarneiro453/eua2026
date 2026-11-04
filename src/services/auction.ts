@@ -6,6 +6,8 @@
  *  - the slot is taken with an optimistic compare-and-swap on (bid, ad), so two simultaneous payments
  *    can never both win; the loser's payment is refunded.
  */
+import { normalizeDomain, sameSite } from './logoMatch'
+
 export const SLOTS = [1, 2] as const
 export type SlotId = (typeof SLOTS)[number]
 export const MIN_BID_CENTS = 500
@@ -26,7 +28,10 @@ export interface D1Like { prepare(sql: string): D1Stmt }
 
 export const minNextBid = (currentCents: number) => Math.max(MIN_BID_CENTS, currentCents + INCREMENT_CENTS)
 
-export interface AdInput { slot: SlotId; amountCents: number; advertiser: string; title: string; body: string; url: string; email: string | null }
+export type LogoSrc = 'logodev' | 'brandfetch' | 'site'
+export const LOGO_SRCS: LogoSrc[] = ['logodev', 'brandfetch', 'site']
+export interface AdLogo { domain: string; src: LogoSrc }
+export interface AdInput { slot: SlotId; amountCents: number; advertiser: string; title: string; body: string; url: string; email: string | null; logo: AdLogo | null }
 export type Validation = { ok: true; value: AdInput } | { ok: false; errors: Record<string, string> }
 
 const clean = (v: unknown) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim() : '')
@@ -53,21 +58,27 @@ export function validateAdInput(raw: any): Validation {
   if (emailRaw && !(emailRaw.length <= 120 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw))) errors.email = 'invalid_email'
   if (raw?.acceptTerms !== true) errors.acceptTerms = 'terms_required'
   if (Object.keys(errors).length) return { ok: false, errors }
-  return { ok: true, value: { slot: slot as SlotId, amountCents, advertiser, title, body, url, email: emailRaw || null } }
+  // A logo is only kept when it belongs to the SAME site the ad links to: a famous brand's logo can never be attached
+  // to an ad that leads somewhere else. Anything dubious is silently dropped (the ad then shows a monogram).
+  let logo: AdLogo | null = null
+  const ld = normalizeDomain(typeof raw?.logo?.domain === 'string' ? raw.logo.domain : '')
+  if (ld && LOGO_SRCS.includes(raw?.logo?.src) && sameSite(new URL(url).hostname, ld)) logo = { domain: ld, src: raw.logo.src }
+  return { ok: true, value: { slot: slot as SlotId, amountCents, advertiser, title, body, url, email: emailRaw || null, logo } }
 }
 
 // ---- public state
-export interface PublicSlot { slot: SlotId; bidCents: number; minNextBidCents: number; ad: { advertiser: string; title: string; body: string; url: string; domain: string } | null }
+export interface PublicSlot { slot: SlotId; bidCents: number; minNextBidCents: number; ad: { advertiser: string; title: string; body: string; url: string; domain: string; logo: AdLogo | null } | null }
 
 export async function getPublicState(db: D1Like): Promise<PublicSlot[]> {
   const { results } = await db.prepare(
-    'SELECT s.slot AS slot, s.bid_cents AS bid, a.advertiser AS advertiser, a.title AS title, a.body AS body, a.url AS url FROM slots s LEFT JOIN ads a ON a.id = s.ad_id ORDER BY s.slot',
-  ).all<{ slot: number; bid: number; advertiser: string | null; title: string | null; body: string | null; url: string | null }>()
+    'SELECT s.slot AS slot, s.bid_cents AS bid, a.advertiser AS advertiser, a.title AS title, a.body AS body, a.url AS url, a.logo_domain AS logoDomain, a.logo_src AS logoSrc FROM slots s LEFT JOIN ads a ON a.id = s.ad_id ORDER BY s.slot',
+  ).all<{ slot: number; bid: number; advertiser: string | null; title: string | null; body: string | null; url: string | null; logoDomain: string | null; logoSrc: string | null }>()
   return (results ?? []).map((r) => ({
     slot: r.slot as SlotId,
     bidCents: r.bid,
     minNextBidCents: minNextBid(r.bid),
-    ad: r.url && r.title ? { advertiser: r.advertiser ?? '', title: r.title, body: r.body ?? '', url: r.url, domain: new URL(r.url).hostname.replace(/^www\./, '') } : null,
+    ad: r.url && r.title ? { advertiser: r.advertiser ?? '', title: r.title, body: r.body ?? '', url: r.url, domain: new URL(r.url).hostname.replace(/^www\./, ''),
+      logo: r.logoDomain && LOGO_SRCS.includes(r.logoSrc as LogoSrc) ? { domain: r.logoDomain, src: r.logoSrc as LogoSrc } : null } : null,
   }))
 }
 
@@ -83,8 +94,8 @@ export async function createPendingAd(db: D1Like, v: AdInput, now = Date.now()):
   const min = minNextBid(slot?.bid ?? 0)
   if (v.amountCents < min) return { ok: false, error: 'bid_too_low', minNextBidCents: min }
   const id = crypto.randomUUID()
-  await db.prepare("INSERT INTO ads (id, slot, bid_cents, advertiser, title, body, url, contact_email, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending_payment', ?)")
-    .bind(id, v.slot, v.amountCents, v.advertiser, v.title, v.body, v.url, v.email, iso).run()
+  await db.prepare("INSERT INTO ads (id, slot, bid_cents, advertiser, title, body, url, contact_email, logo_domain, logo_src, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_payment', ?)")
+    .bind(id, v.slot, v.amountCents, v.advertiser, v.title, v.body, v.url, v.email, v.logo?.domain ?? null, v.logo?.src ?? null, iso).run()
   return { ok: true, id }
 }
 

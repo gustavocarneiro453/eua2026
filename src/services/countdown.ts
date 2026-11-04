@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { fallbackTargetMs, parseTargetIso } from '@/config/election'
+import { readConfig } from './config'
 
 /**
  * Countdown to the expected start of the vote count.
@@ -63,14 +64,12 @@ export async function initCountdown() {
   if (initialized) return
   initialized = true
   try {
-    const t0 = Date.now()
-    const res = await fetch('/api/config', { cache: 'no-store', signal: AbortSignal.timeout(4000) })
-    if (!res.ok) throw new Error(`http_${res.status}`)
-    const j = await res.json()
-    const server = Date.parse(j?.serverNow), target = parseTargetIso(j?.countdownTarget)
-    if (Number.isNaN(server) || target == null) throw new Error('invalid_config')
+    const r = await readConfig()
+    const j = r?.json
+    const server = Date.parse(j?.serverNow ?? ''), target = parseTargetIso(j?.countdownTarget)
+    if (!r || Number.isNaN(server) || target == null) throw new Error('invalid_config')
     // Offset between server and visitor clocks, taking half the round trip as network delay.
-    set({ ready: true, targetMs: target, skewMs: server - (t0 + (Date.now() - t0) / 2), source: j.countdownSource === 'configured' ? 'configured' : 'default', fromServer: true })
+    set({ ready: true, targetMs: target, skewMs: server - (r.sentAt + (r.receivedAt - r.sentAt) / 2), source: j?.countdownSource === 'configured' ? 'configured' : 'default', fromServer: true })
   } catch {
     set({ ready: true }) // keep the documented default and the visitor's own clock
   }
