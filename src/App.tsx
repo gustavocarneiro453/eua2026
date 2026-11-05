@@ -14,7 +14,6 @@ const States = lazy(() => import('@/pages/States').then((m) => ({ default: m.Sta
 const StateDetail = lazy(() => import('@/pages/States').then((m) => ({ default: m.StateDetail })))
 const Learn = lazy(() => import('@/pages/Learn'))
 const News = lazy(() => import('@/pages/News'))
-const Advertise = lazy(() => import('@/pages/Advertise'))
 
 export default function App() {
   // Results are only requested once the countdown has ended (the target comes from /api/config).
@@ -38,7 +37,6 @@ export default function App() {
                 <Route path="states/:code" element={<StateDetail />} />
                 <Route path="learn" element={<Learn />} />
                 <Route path="news" element={<News />} />
-                <Route path="anuncie" element={<Advertise />} />
                 <Route path="*" element={<Overview />} />
               </Route>
             </Routes>

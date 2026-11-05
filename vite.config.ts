@@ -6,9 +6,7 @@ import path from 'node:path'
 
 /**
  * Dev only: serves the Cloudflare Pages Functions in functions/api/** through Vite, so `npm run dev` behaves
- * like production (same code) without wrangler. Workers' `caches.default` is an in-memory store, D1 is a local
- * SQLite file (.dev-data/ads.sqlite, Node 22+), and payments run in MOCK mode (a fake checkout page) unless
- * MP_ACCESS_TOKEN is set in .env.local, in which case real Mercado Pago calls are made.
+ * like production (same code) without wrangler. Workers' `caches.default` is an in-memory store.
  */
 function pagesFunctionsDev(): Plugin {
   const store = new Map<string, string>()
@@ -27,15 +25,7 @@ function pagesFunctionsDev(): Plugin {
       const devEnv = async () => {
         if (env) return env
         const vars = loadEnv(server.config.mode, __dirname, '')
-        let DB: unknown
-        try { DB = (await server.ssrLoadModule('/src/dev/sqliteD1.ts')).openDevD1(path.resolve(__dirname, '.dev-data/ads.sqlite')) } catch (e) {
-          server.config.logger.warn(`[ads] local database unavailable (needs Node 22+): ${(e as Error).message}`)
-        }
-        env = {
-          DB, MP_ACCESS_TOKEN: vars.MP_ACCESS_TOKEN || undefined, MP_WEBHOOK_SECRET: vars.MP_WEBHOOK_SECRET || undefined,
-          ADMIN_TOKEN: vars.ADMIN_TOKEN || 'dev-admin', PAYMENTS_MODE: vars.MP_ACCESS_TOKEN ? undefined : 'mock', COUNTDOWN_TARGET: vars.COUNTDOWN_TARGET || undefined,
-          LOGODEV_SECRET_KEY: vars.LOGODEV_SECRET_KEY || undefined, LOGODEV_PUBLISHABLE_KEY: vars.LOGODEV_PUBLISHABLE_KEY || undefined, BRANDFETCH_CLIENT_ID: vars.BRANDFETCH_CLIENT_ID || undefined,
-        }
+        env = { COUNTDOWN_TARGET: vars.COUNTDOWN_TARGET || undefined }
         return env
       }
       server.middlewares.use(async (req, res, next) => {

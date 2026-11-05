@@ -3,7 +3,6 @@ export interface PublicConfig {
   serverNow?: string
   countdownTarget?: string
   countdownSource?: string
-  logo?: { logodevToken?: string | null; brandfetchClientId?: string | null }
 }
 export interface ConfigReading { json: PublicConfig; sentAt: number; receivedAt: number }
 
