@@ -2,38 +2,53 @@ import { Link } from 'react-router-dom'
 import { AlertTriangle, Ban, CheckCircle2, CircleDashed, Clock, ExternalLink, Megaphone, ShieldCheck } from 'lucide-react'
 import { useI18n } from '@/i18n'
 import type { Candidate, Party, Race } from '@/services/types'
-import { type DisplayStatus, hasCountedVotes, leader, PARTY_COLOR, sortedCandidates, winLabelKey, winner } from '@/lib/race'
+import { hasCountedVotes, PARTY_COLOR, sortedCandidates, winLabelKey, winner } from '@/lib/race'
+import type { Sit, SitKind } from '@/lib/classify'
+import { paint } from '@/lib/sitStyle'
 import { useSenate } from '@/services/senate'
 import { PollsBlock } from '@/components/PollsBlock'
 import { STATE_OFFICES } from '@/data/stateOffices'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { STATE_BY_CODE } from '@/data/states'
+import type { DictKey } from '@/i18n/dict'
 import { cn } from '@/lib/utils'
 
-const STATUS_STYLE: Record<DisplayStatus, { variant: 'neutral' | 'live' | 'success' | 'warn' | 'accent'; Icon: typeof Clock }> = {
-  no_data: { variant: 'neutral', Icon: CircleDashed },
-  notCovered: { variant: 'neutral', Icon: Ban },
+const KIND_STYLE: Record<SitKind, { variant: 'neutral' | 'live' | 'success' | 'warn' | 'accent'; Icon: typeof Clock }> = {
+  noRace: { variant: 'neutral', Icon: Ban },
+  awaiting: { variant: 'neutral', Icon: CircleDashed },
   unavailable: { variant: 'warn', Icon: AlertTriangle },
-  notStarted: { variant: 'neutral', Icon: Clock },
-  counting: { variant: 'warn', Icon: Clock },
+  lead: { variant: 'warn', Icon: Clock },
+  tied: { variant: 'neutral', Icon: Clock },
   projected: { variant: 'accent', Icon: Megaphone },
   official: { variant: 'success', Icon: CheckCircle2 },
   certified: { variant: 'success', Icon: ShieldCheck },
 }
 
-export function StatusBadge({ status }: { status: DisplayStatus }) {
+/** Short label for a situation, e.g. "Liderança · Democrata". */
+export function useSitLabel() {
   const { t } = useI18n()
-  const { variant, Icon } = STATUS_STYLE[status]
-  const tip = status === 'notCovered' ? t('data.coverageNote') : t(`status.tip.${status}`)
+  return (sit: Sit) => (sit.party && ['lead', 'projected', 'official', 'certified'].includes(sit.kind) ? `${t(`sit.${sit.kind}`)} · ${t(`party.${sit.party}`)}` : t(`sit.${sit.kind}`))
+}
+export const sitTipKey = (sit: Sit) => (sit.kind === 'awaiting' && sit.reason === 'notStarted' ? 'sit.tip.notStarted' : sit.kind === 'unavailable' ? (sit.reason === 'feedError' ? 'sit.tip.feedError' : 'sit.tip.unavailable') : `sit.tip.${sit.kind}`) as DictKey
+
+export function StatusBadge({ sit }: { sit: Sit }) {
+  const { t } = useI18n()
+  const label = useSitLabel()
+  const { variant, Icon } = KIND_STYLE[sit.kind]
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span tabIndex={0}><Badge variant={variant}><Icon className="h-3 w-3" />{t(`status.${status}`)}</Badge></span>
+        <span tabIndex={0}><Badge variant={variant}><Icon className="h-3 w-3" />{label(sit)}</Badge></span>
       </TooltipTrigger>
-      <TooltipContent>{tip}</TooltipContent>
+      <TooltipContent>{t(sitTipKey(sit))}{sit.complete ? ` ${t('sit.tip.complete')}` : ''}</TooltipContent>
     </Tooltip>
   )
+}
+
+/** Small square with the same paint the maps use. */
+export function SitSwatch({ sit, className }: { sit: Sit; className?: string }) {
+  return <span aria-hidden className={cn('inline-block h-3 w-3 shrink-0 rounded-sm ring-1 ring-line', className)} style={paint(sit).css} />
 }
 
 export function PartyDot({ party, className }: { party: Party; className?: string }) {
@@ -67,12 +82,11 @@ export function raceLabel(office: Race['office'], state: string, district?: numb
   return `${state}-${district === 0 ? 'AL' : String(district).padStart(2, '0')}`
 }
 
-function CandidateRow({ c, race, max }: { c: Candidate; race: Race; max: number }) {
+function CandidateRow({ c, race, max, sit }: { c: Candidate; race: Race; max: number; sit: Sit }) {
   const { t, num, pct } = useI18n()
   const w = winner(race)
-  const l = leader(race)
   const isWinner = w?.id === c.id
-  const isLeader = !w && l?.id === c.id && race.status === 'counting'
+  const isLeader = !w && sit.kind === 'lead' && sortedCandidates(race)[0]?.id === c.id
   return (
     <li className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-1 py-2">
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -101,14 +115,15 @@ export function StateOfficeLink({ state }: { state: string }) {
   return <a href={o.results ?? o.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-accent hover:underline">{o.name}<ExternalLink className="h-3 w-3" /><span className="sr-only">{t('news.opensNew')}</span></a>
 }
 
-/** What a race shows when it has no votes yet: the reason, plus any real candidate names the state published. */
-export function EmptyRace({ state, status, race, compact }: { state: string; status: DisplayStatus; race?: Race; compact?: boolean }) {
+/** What a race shows when it has no votes yet: the reason, plus any real candidate names the source published. */
+export function EmptyRace({ state, sit, race, compact }: { state: string; sit: Sit; race?: Race; compact?: boolean }) {
   const { t } = useI18n()
   return (
     <div className="mt-3 space-y-3">
       <div className="rounded-lg border border-dashed border-line px-3 py-3 text-xs leading-relaxed text-muted">
-        {status === 'notCovered' ? <>{t('race.notCoveredMsg')} <StateOfficeLink state={state} /></>
-          : status === 'unavailable' ? t('race.unavailableMsg') : status === 'notStarted' ? t('race.notStartedMsg') : t('race.await')}
+        {sit.reason === 'notIntegrated' ? <>{t('race.notCoveredMsg')} <StateOfficeLink state={state} /></>
+          : sit.reason === 'feedError' ? t('race.unavailableMsg') : sit.reason === 'notStarted' ? t('race.notStartedMsg')
+          : sit.reason === 'loading' ? t('race.loadingMsg') : t('race.await')}
       </div>
       {race && race.candidates.length > 0 && (
         <div><p className="eyebrow mb-1">{t('race.listed')}</p>
@@ -122,11 +137,32 @@ export function EmptyRace({ state, status, race, compact }: { state: string; sta
   )
 }
 
-export function RaceCard({ office, state, district, special, race, status, heldBy, compact }: {
-  office: Race['office']; state: string; district?: number | null; special?: boolean
-  race?: Race; status: DisplayStatus; heldBy?: Party; compact?: boolean
-}) {
+/** Where a race's numbers come from and when its source last updated it. Always visible: no number without its origin. */
+export function SourceLine({ race, sit }: { race?: Race; sit: Sit }) {
   const { t, date } = useI18n()
+  if (!race) return null
+  return (
+    <div className="space-y-0.5 text-[11px] leading-relaxed text-muted">
+      {race.source && <p>{t('race.sourceIs')}: <a href={race.source.url} target="_blank" rel="noreferrer" className="hover:text-ink hover:underline">{race.source.name}</a></p>}
+      {race.updatedAt && <p className="num">{t('race.updated', { t: date(race.updatedAt) })}</p>}
+      {race.declaration && (
+        <p>{race.declaration.status === 'projected' ? t('race.projectedBy', { src: race.declaration.by }) : race.declaration.status === 'official' ? t('race.officialBy', { src: race.declaration.by }) : t('race.certifiedBy2', { src: race.declaration.by })}
+          {' · '}<a href={race.declaration.url} target="_blank" rel="noreferrer" className="text-accent hover:underline">{t('race.evidence')}</a>
+          {' · '}<span className="num">{date(race.declaration.at)}</span></p>
+      )}
+      {sit.complete && sit.kind === 'lead' && <p className="text-amber-300/90">{t('race.completeNote')}</p>}
+      {race.uncontested && <p>{t('race.uncontested')}</p>}
+      {race.sourceConflict && <p className="text-amber-300/90">{t('race.conflictNote')}</p>}
+      {race.duplicatesRemoved ? <p className="text-amber-300/90">{t('race.dupNote', { n: race.duplicatesRemoved })}</p> : null}
+    </div>
+  )
+}
+
+export function RaceCard({ office, state, district, special, race, sit, heldBy, compact }: {
+  office: Race['office']; state: string; district?: number | null; special?: boolean
+  race?: Race; sit: Sit; heldBy?: Party; compact?: boolean
+}) {
+  const { t, hm } = useI18n()
   const senate = useSenate()
   const cands = race ? sortedCandidates(race) : []
   const counted = hasCountedVotes(race)
@@ -141,7 +177,7 @@ export function RaceCard({ office, state, district, special, race, status, heldB
             <Link to={`/states/${state}`} className="hover:text-accent">{raceLabel(office, state, district)}</Link>
           </h3>
         </div>
-        <StatusBadge status={status} />
+        <StatusBadge sit={sit} />
       </header>
       {inc ? (
         <p className="mt-2 flex items-center gap-1.5 text-xs text-muted" title="senate.gov"><PartyDot party={inc.party} />{t('race.holder', { name: `${inc.first} ${inc.last}` })}</p>
@@ -150,10 +186,10 @@ export function RaceCard({ office, state, district, special, race, status, heldB
       ) : null}
       {counted ? (
         <ul className="mt-2 divide-y divide-line/60">
-          {(compact ? cands.slice(0, 3) : cands).map((c) => <CandidateRow key={c.id} c={c} race={race!} max={max} />)}
+          {(compact ? cands.slice(0, 3) : cands).map((c) => <CandidateRow key={c.id} c={c} race={race!} max={max} sit={sit} />)}
         </ul>
       ) : (
-        <EmptyRace state={state} status={status} race={race} compact={compact} />
+        <EmptyRace state={state} sit={sit} race={race} compact={compact} />
       )}
       {!counted && office !== 'house' && (
         <div className="mt-3 border-t border-line/60 pt-3">
@@ -162,11 +198,8 @@ export function RaceCard({ office, state, district, special, race, status, heldB
       )}
       <footer className="mt-auto space-y-1.5 pt-3">
         {race && counted && <ReportingBar pct={race.reportingPct} />}
-        {race?.status === 'projected' && race.projectionSource && <p className="text-[11px] text-muted">{t('race.projectedBy', { src: race.projectionSource })}</p>}
-        {race?.status === 'certified' && race.certificationSource && (
-          <a href={race.certificationSource} target="_blank" rel="noreferrer" className="text-[11px] text-accent hover:underline">{t('race.certifiedBy')}</a>
-        )}
-        {race?.updatedAt && counted && <p className="text-[11px] text-muted">{t('race.updated', { t: date(race.updatedAt) })}</p>}
+        {!compact && <SourceLine race={race} sit={sit} />}
+        {compact && race?.updatedAt && counted && <p className="num text-[11px] text-muted">{race.source?.name.split(' (')[0]} · {t('race.updatedShort', { t: hm(race.updatedAt) })}</p>}
       </footer>
     </article>
   )

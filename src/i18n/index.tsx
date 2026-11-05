@@ -21,6 +21,7 @@ function makeApi(lang: Lang) {
   const pf = new Intl.NumberFormat(locale, { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 })
   const dtf = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' })
   const tf = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  const hmf = new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit' })
   // Prices are always in Brazilian reais, whatever the interface language
   const brlf = new Intl.NumberFormat(locale, { style: 'currency', currency: 'BRL' })
   const df = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
@@ -42,6 +43,8 @@ function makeApi(lang: Lang) {
     pct: (n: number | null | undefined) => (n == null ? '—' : pf.format(n / 100)),
     date: (d: string | number | Date | null | undefined) => (d == null ? '—' : dtf.format(new Date(d))),
     time: (d: string | number | Date) => tf.format(new Date(d)),
+    /** hour:minute in the interface language's format */
+    hm: (d: string | number | Date) => hmf.format(new Date(d)),
     /** 'YYYY-MM-DD' (UTC) → "3 nov." */
     shortDate: (iso: string) => new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(iso)),
     longDate: (iso: string) => new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(iso)),

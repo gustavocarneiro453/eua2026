@@ -1,41 +1,33 @@
 import { Fragment, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useI18n } from '@/i18n'
-import { raceKey, useRaces } from '@/hooks/useElections'
+import { raceKey } from '@/hooks/useElections'
+import { useBallot } from '@/hooks/useBallot'
 import { HOUSE, STATES, type StateInfo } from '@/data/states'
-import { displayStatus, hasCountedVotes, rankCandidates } from '@/lib/race'
-import { useSeats, type SeatInfo } from '@/services/seats'
+import { hasCountedVotes, rankCandidates } from '@/lib/race'
+import { useSeats } from '@/services/seats'
 import { PartyDot, raceLabel, ReportingBar, StatusBadge, StateOfficeLink } from '@/components/election'
 import { PollsBlock } from '@/components/PollsBlock'
+import { SeatLines } from '@/components/SeatLines'
 import { InfoTip } from '@/components/InfoTip'
 import { PageHeader } from '@/components/PageHeader'
 import { DataBanner } from '@/components/DataPanel'
 import { Pagination } from '@/components/ui/pagination'
+import { OfficeSummary } from '@/components/OfficeSummary'
+import { MethodNote } from '@/components/MethodNote'
+import { MapLegend } from '@/components/MapLegend'
+import { DistrictGrid } from '@/components/DistrictGrid'
+import { RacePanel } from '@/components/RacePanel'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { Race } from '@/services/types'
 
 export const PAGE_SIZE = 25
-const REDISTRICTED = new Set(['AL', 'CA', 'FL', 'LA', 'NC', 'OH', 'TN', 'TX', 'UT'])
 
 export interface HouseRow { state: StateInfo; district: number; seat: string }
 const seatKey = (code: string, d: number) => `${code}-${String(d).padStart(2, '0')}`
 export function houseRows(states: StateInfo[]): HouseRow[] {
   return states.flatMap((s) => (s.houseSeats === 1 ? [0] : Array.from({ length: s.houseSeats }, (_, i) => i + 1)).map((d) => ({ state: s, district: d, seat: seatKey(s.code, d) })))
-}
-
-function SeatLines({ seat, row }: { seat: SeatInfo | 'error' | undefined; row: HouseRow }) {
-  const { t, pct, dec } = useI18n()
-  if (!seat) return <p className="text-xs text-muted">{t('race.seatLoading')}</p>
-  if (seat === 'error') return <p className="text-xs text-amber-300">{t('race.seatError')}</p>
-  return (
-    <div className="space-y-0.5 text-xs">
-      <p className="flex items-center gap-1.5 text-ink/90">{seat.party && <PartyDot party={seat.party} />}{seat.vacant ? t('race.vacant') + (seat.reason ? ` (${seat.reason})` : '') : t('race.holder', { name: seat.member ?? '—' })}</p>
-      {seat.last
-        ? <p className="num text-muted">{t('race.last2024')}: {seat.last.winner} {seat.last.share != null ? pct(seat.last.share) : ''}{seat.last.unopposed ? ` (${t('race.unopposed')})` : seat.last.runnerUp ? ` · ${seat.last.runnerUp}${seat.last.margin != null ? ` (+${dec(seat.last.margin)} ${t('race.pp')})` : ''}` : ''}</p>
-        : <p className="text-muted">{REDISTRICTED.has(row.state.code) ? t('race.redistricted') : t('common.dash')}</p>}
-    </div>
-  )
 }
 
 function Candidates({ race }: { race: Race }) {
@@ -63,7 +55,7 @@ function Candidates({ race }: { race: Race }) {
 /** One page of districts. Rows without votes show the incumbent and the certified 2024 result instead of "no data". */
 export function HouseTable({ rows }: { rows: HouseRow[] }) {
   const { t } = useI18n()
-  const { map, coverage, feed } = useRaces()
+  const { byKey } = useBallot()
   const seatOf = useSeats(rows.map((r) => r.seat))
   return (
     <div className="overflow-x-auto rounded-xl border border-line bg-surface">
@@ -77,27 +69,27 @@ export function HouseTable({ rows }: { rows: HouseRow[] }) {
         </thead>
         <tbody>
           {rows.map((row, i) => {
-            const r = map.get(raceKey('house', row.state.code, row.district))
-            const status = displayStatus(r, coverage, !!feed.snapshot, row.state.code)
+            const b = byKey.get(raceKey('house', row.state.code, row.district))!
+            const r = b.race, sit = b.sit
             const counted = hasCountedVotes(r)
             return (
               <Fragment key={row.seat}>
                 {(i === 0 || rows[i - 1].state.code !== row.state.code) && (
-                  <tr className="bg-surface-2/60"><td colSpan={5} className="px-4 py-2 text-xs font-semibold"><Link to={`/states/${row.state.code}`} className="hover:text-accent">{row.state.name}</Link> <span className="font-normal text-muted">· {row.state.houseSeats === 1 ? t('map.district1') : t('map.districts', { n: row.state.houseSeats })}</span>{status === 'notCovered' && <span className="ml-2 font-normal text-muted">· {t('race.officialResults')} <StateOfficeLink state={row.state.code} /></span>}</td></tr>
+                  <tr className="bg-surface-2/60"><td colSpan={5} className="px-4 py-2 text-xs font-semibold"><Link to={`/states/${row.state.code}`} className="hover:text-accent">{row.state.name}</Link> <span className="font-normal text-muted">· {row.state.houseSeats === 1 ? t('map.district1') : t('map.districts', { n: row.state.houseSeats })}</span>{sit.reason === 'notIntegrated' && <span className="ml-2 font-normal text-muted">· {t('race.officialResults')} <StateOfficeLink state={row.state.code} /></span>}</td></tr>
                 )}
                 <tr className="border-t border-line/60 align-top">
                   <td className="num px-4 py-2.5 font-medium">{raceLabel('house', row.state.code, row.district)}</td>
                   {r && counted ? <Candidates race={r} /> : (
                     <>
                       <td className="px-4 py-2.5">
-                        <SeatLines seat={seatOf(row.seat)} row={row} />
+                        <SeatLines seat={seatOf(row.seat)} state={row.state.code} />
                         <PollsBlock kind="house" state={row.state.code} district={row.district} limit={1} hideEmpty footer={false} />
                       </td>
                       <td className="num px-4 py-2.5 text-right text-muted">—</td>
                     </>
                   )}
                   <td className="px-4 py-2.5">{r && counted ? <ReportingBar pct={r.reportingPct} /> : <span className="text-muted">—</span>}</td>
-                  <td className="px-4 py-2.5"><StatusBadge status={status} /></td>
+                  <td className="px-4 py-2.5"><StatusBadge sit={sit} />{r && counted && <p className="num mt-1 text-[10px] text-muted">{r.source?.name.split(' (')[0]}</p>}</td>
                 </tr>
               </Fragment>
             )
@@ -121,9 +113,31 @@ export function PagedHouseTable({ rows }: { rows: HouseRow[] }) {
   )
 }
 
+/** National House picture: totals, the 435 districts (each with its own result) and the district detail. */
+function HouseOverview() {
+  const { t } = useI18n()
+  const { by } = useBallot()
+  const rows = by('house')
+  const [sel, setSel] = useState<string | null>(null)
+  const row = sel ? rows.find((r) => r.seat.key === sel) : null
+  return (
+    <div className="container-x mt-6 space-y-4">
+      <section className="rounded-xl border border-line bg-surface p-4" aria-label={t('sum.national')}><OfficeSummary office="house" /></section>
+      <MethodNote office="house" />
+      <section className="rounded-xl border border-line bg-surface p-4">
+        <h2 className="font-serif text-xl font-semibold">{t('house.gridTitle')}</h2>
+        <p className="mt-1 text-xs leading-relaxed text-muted">{t('house.gridHint')}</p>
+        <div className="mt-4"><DistrictGrid rows={rows} selected={sel} onSelect={(r) => setSel(r.seat.key === sel ? null : r.seat.key)} size={22} /></div>
+        <MapLegend house />
+        {row && <div className="mt-4"><RacePanel row={row} onClose={() => setSel(null)} /></div>}
+      </section>
+    </div>
+  )
+}
+
 export default function House() {
   const { t } = useI18n()
-  const { map } = useRaces()
+  const { byKey } = useBallot()
   const [sp, setSp] = useSearchParams()
   const uf = STATES.some((s) => s.code === sp.get('uf')) ? sp.get('uf')! : ''
   const status = sp.get('status') === 'counting' || sp.get('status') === 'await' ? sp.get('status')! : ''
@@ -133,8 +147,8 @@ export default function House() {
   const rows = useMemo(() => {
     const base = houseRows(uf ? STATES.filter((s) => s.code === uf) : STATES)
     if (!status) return base
-    return base.filter((r) => hasCountedVotes(map.get(raceKey('house', r.state.code, r.district))) === (status === 'counting'))
-  }, [uf, status, map])
+    return base.filter((r) => hasCountedVotes(byKey.get(raceKey('house', r.state.code, r.district))?.race) === (status === 'counting'))
+  }, [uf, status, byKey])
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
   const page = Math.min(rawPage, pageCount)
 
@@ -168,6 +182,7 @@ export default function House() {
           {(uf || status) && <Button variant="ghost" size="sm" onClick={() => setSp(new URLSearchParams())}>{t('house.reset')}</Button>}
         </div>
       </PageHeader>
+      <HouseOverview />
       <div ref={top} className="container-x mt-6 scroll-mt-20 space-y-4">
         {rows.length === 0 ? <p className="text-sm text-muted">{t('common.none')}</p> : (
           <>

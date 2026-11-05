@@ -1,4 +1,5 @@
-import type { Candidate, Office, Party, Race, Snapshot } from './types'
+import type { Candidate, Office, Party, Race, Snapshot, SourceRef } from './types'
+import { SENATE_SEATS } from '../data/states'
 
 /**
  * Open America election results API, contract version 1.
@@ -31,14 +32,20 @@ export const OA_OFFICES: { office: Office; param: string }[] = [
 
 export const oaUrl = (year: number, param: string) => `${OA_BASE}/elections/results.json?year=${year}&office=${param}`
 
-interface OaCand { n: string; p: string; v: number; pct: number | null; inc?: boolean }
-interface OaRace { leader?: string; pct_in: number | null; total?: number; cands: OaCand[] }
+export interface OaCand { n: string; p: string; v: number; pct: number | null; inc?: boolean }
+interface OaRace { leader?: string; pct_in: number | null; total?: number; as_of?: string | null; uncontested?: boolean; cands: OaCand[] }
 export interface OaPayload {
   api: number; year: number; office: string
   live: boolean; stale: boolean; counting: boolean; final: boolean
   as_of: string | null; source: string
   races: Record<string, OaRace>
 }
+
+export const OA_SOURCE: SourceRef = { id: 'openamerica', name: 'Open America (escritórios eleitorais estaduais)', url: OA_DOCS, kind: 'state-official' }
+
+// States whose ONLY Senate race in 2026 is a special election (FL, OH). The feed may key it "FL" or "FL-special";
+// either way it is that special race, so the two must meet on the same key.
+const ONLY_SPECIAL = new Set(SENATE_SEATS.filter((x) => x.special && SENATE_SEATS.filter((y) => y.state === x.state).length === 1).map((x) => x.state))
 
 const PARTY: Record<string, Party> = { D: 'DEM', R: 'REP', I: 'IND', L: 'LIB', G: 'GRN' }
 
@@ -64,7 +71,40 @@ function parseKey(office: Office, key: string): Pick<Race, 'state' | 'district' 
     return m ? { state: m[1], district: Number(m[2]), special: false } : null
   }
   const m = /^([A-Z]{2})(-SPECIAL)?$/.exec(key.toUpperCase())
-  return m ? { state: m[1], district: null, special: !!m[2] } : null
+  if (!m) return null
+  return { state: m[1], district: null, special: !!m[2] || (office === 'senate' && ONLY_SPECIAL.has(m[1])) }
+}
+
+/**
+ * Verified 2026-11-05 in the live feed: Indiana's nine House races list candidates more than once, so the votes add up to
+ * more than the published total. Two cases, handled without inventing anything:
+ *  - EXACT repeats (same name, party, votes and %) are dropped;
+ *  - the same candidate with DIFFERENT numbers (IN-09) is resolved only if exactly one combination of lines adds up to
+ *    the state's own `total`; otherwise the first line of each is kept and the race is flagged `sourceConflict`.
+ */
+export function resolveLines(cands: OaCand[], total: number | undefined): { lines: OaCand[]; removed: number; conflict: boolean } {
+  const seen = new Set<string>()
+  const lines = cands.filter((c) => { const k = `${c.n}|${c.p}|${c.v}|${c.pct}`; if (seen.has(k)) return false; seen.add(k); return true })
+  const groups = new Map<string, OaCand[]>()
+  for (const c of lines) (groups.get(`${c.n}|${c.p}`) ?? groups.set(`${c.n}|${c.p}`, []).get(`${c.n}|${c.p}`)!).push(c)
+  const dup = [...groups.values()].filter((g) => g.length > 1)
+  if (!dup.length) return { lines, removed: cands.length - lines.length, conflict: false }
+  let chosen: OaCand[] | null = null
+  if (typeof total === 'number' && dup.length <= 10) {
+    const single = [...groups.values()].filter((g) => g.length === 1).flat()
+    const base = single.reduce((a, c) => a + c.v, 0)
+    const hits: OaCand[][] = []
+    const walk = (i: number, sum: number, pick: OaCand[]) => {
+      if (i === dup.length) { if (sum === total) hits.push(pick); return }
+      for (const c of dup[i]) walk(i + 1, sum + c.v, [...pick, c])
+    }
+    walk(0, base, [])
+    if (hits.length === 1) chosen = [...single, ...hits[0]]
+  }
+  const keep = chosen ?? [...groups.values()].map((g) => g[0])
+  const order = new Map(cands.map((c, i) => [`${c.n}|${c.p}|${c.v}|${c.pct}`, i]))
+  keep.sort((a, b) => (order.get(`${a.n}|${a.p}|${a.v}|${a.pct}`) ?? 0) - (order.get(`${b.n}|${b.p}|${b.v}|${b.pct}`) ?? 0))
+  return { lines: keep, removed: cands.length - keep.length, conflict: chosen === null }
 }
 
 function toRaces(office: Office, p: OaPayload): Race[] {
@@ -72,7 +112,8 @@ function toRaces(office: Office, p: OaPayload): Race[] {
   for (const [key, r] of Object.entries(p.races)) {
     const k = parseKey(office, key)
     if (!k) continue // unknown key format: skip rather than guess
-    const candidates: Candidate[] = r.cands.map((c) => ({
+    const { lines: unique, removed: duplicatesRemoved, conflict } = resolveLines(r.cands, r.total)
+    const candidates: Candidate[] = unique.map((c) => ({
       id: `${c.n}|${c.p}`,
       name: c.n,
       party: PARTY[c.p] ?? 'OTH',
@@ -82,7 +123,7 @@ function toRaces(office: Office, p: OaPayload): Race[] {
       // the feed's `inc: false` means "unknown", so only a true flag is kept
       ...(c.inc ? { incumbent: true } : {}),
     }))
-    const hasVotes = r.cands.some((c) => c.v > 0)
+    const hasVotes = unique.some((c) => c.v > 0)
     out.push({
       id: `${office}:${key}`,
       office, ...k,
@@ -91,8 +132,13 @@ function toRaces(office: Office, p: OaPayload): Race[] {
       candidates,
       reportingPct: r.pct_in,
       winnerId: null,
-      // Feed-level timestamp (newest state update across this office's payload)
-      updatedAt: p.as_of,
+      // The race's own update time as the state published it; the feed-level time only when the race has none
+      updatedAt: r.as_of ?? p.as_of,
+      source: OA_SOURCE,
+      totalVotes: isNum(r.total) ? r.total : null,
+      ...(r.uncontested === true ? { uncontested: true } : {}),
+      ...(duplicatesRemoved > 0 ? { duplicatesRemoved } : {}),
+      ...(conflict ? { sourceConflict: true } : {}),
     })
   }
   return out

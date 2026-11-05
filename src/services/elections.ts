@@ -1,7 +1,10 @@
-import type { FeedState, Race, Snapshot, UpdateEvent } from './types'
+import type { FeedState, OfficeHealth, Race, Snapshot, UpdateEvent } from './types'
 
 import { fallbackTargetMs } from '@/config/election'
 import { OA_OFFICES, oaUrl, toSnapshot, validate, type OaPayload } from './openamerica'
+import { diffSnapshots, mergeEvents } from './events'
+import { applyDeclarations, parseDeclarations, type DeclarationItem } from './declarations'
+import { mergeSnapshots } from './merge'
 
 /**
  * Election data service — one shared poller for the whole app.
@@ -15,7 +18,7 @@ const ENABLED = import.meta.env.VITE_DATA_SOURCE !== 'off'
 const YEAR = Number(import.meta.env.VITE_OA_YEAR) === 2024 ? 2024 : 2026
 const URLS = OA_OFFICES.map((o) => ({ ...o, url: oaUrl(YEAR, o.param) }))
 const POLL_MS = 60_000 // provider's schedule while races exist and are not final
-const IDLE_MS = 10 * 60_000 // provider's schedule before any race exists, or once final
+const IDLE_MS = 10 * 60_000 // only a reference value shown in the Data tab; the poller never slows down once the count started
 const MAX_BACKOFF_MS = 10 * 60_000
 const STALE_AFTER_MS = POLL_MS * 3
 const STORAGE_KEY = `eua2026:snapshot:oa${YEAR}:v2`
@@ -37,10 +40,14 @@ function isSnapshot(s: any): s is Snapshot {
 }
 
 // ---------- store ----------
+const emptyHealth = (): OfficeHealth => ({ ok: false, error: null, lastOkAt: null, asOf: null, races: 0 })
 let state: FeedState = {
   status: ENABLED ? 'loading' : 'not_configured',
   snapshot: null, lastSuccessAt: null, lastAttemptAt: null, error: null, stale: false,
+  offices: { house: emptyHealth(), senate: emptyHealth(), governor: emptyHealth() }, lastChangeAt: null, checks: 0,
 }
+const EVENTS_KEY = `eua2026:events:oa${YEAR}:v1`
+const isEvent = (e: any): e is UpdateEvent => e && typeof e.id === 'string' && typeof e.raceId === 'string' && typeof e.at === 'number' && typeof e.kind === 'string' && typeof e.state === 'string'
 let events: UpdateEvent[] = []
 const listeners = new Set<() => void>()
 let timer: ReturnType<typeof setTimeout> | null = null
@@ -53,27 +60,15 @@ function set(patch: Partial<FeedState>) {
   listeners.forEach((l) => l())
 }
 
-// Restore last valid snapshot so a reload during an outage still shows data (flagged stale).
+// Restore the last valid snapshot (and the history of real changes) so a reload keeps both; the snapshot is flagged stale.
 try {
   const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
   if (ENABLED && saved && isSnapshot(saved.snapshot) && fallbackTargetMs() <= Date.now()) {
     state = { ...state, snapshot: saved.snapshot, lastSuccessAt: saved.at, stale: Date.now() - saved.at > STALE_AFTER_MS }
   }
+  const ev = JSON.parse(localStorage.getItem(EVENTS_KEY) || '[]')
+  if (ENABLED && Array.isArray(ev) && fallbackTargetMs() <= Date.now()) events = ev.filter(isEvent).slice(0, 200)
 } catch { /* storage unavailable */ }
-
-function diff(prev: Snapshot | null, next: Snapshot) {
-  if (!prev) return
-  const old = new Map(prev.races.map((r) => [r.id, r]))
-  const now = Date.now()
-  for (const r of next.races) {
-    const prevStatus = old.get(r.id)?.status ?? 'no_data'
-    if (prevStatus === r.status) continue
-    const kind: UpdateEvent['kind'] | null =
-      prevStatus === 'no_data' && r.status === 'counting' ? 'first_results'
-      : r.status === 'projected' || r.status === 'official' || r.status === 'certified' ? r.status : null
-    if (kind) events = [{ id: `${r.id}:${kind}:${now}`, at: now, raceId: r.id, kind }, ...events].slice(0, 50)
-  }
-}
 
 function maxAgeMs(res: Response) {
   const m = /max-age=(\d+)/.exec(res.headers.get('cache-control') || '')
@@ -102,41 +97,71 @@ async function fetchOffice(u: (typeof URLS)[number]): Promise<{ changed: boolean
   return { changed: true, minDelay }
 }
 
+// Declarations (projections / official calls / certifications) with their evidence; see ./declarations.ts
+let declText = '', declItems: DeclarationItem[] = []
+async function fetchDeclarations(): Promise<boolean> {
+  try {
+    const res = await fetch('/declarations.json', { cache: 'no-cache', credentials: 'omit', headers: { Accept: 'application/json' } })
+    if (!res.ok || !(res.headers.get('content-type') || '').includes('json')) { const had = declItems.length > 0; declItems = []; declText = ''; return had }
+    const text = await res.text()
+    if (text === declText) return false
+    declText = text
+    declItems = parseDeclarations(JSON.parse(text)).items
+    return true
+  } catch { return false } // unreachable or malformed: keep what was there, never invent
+}
+
 async function fetchOnce(): Promise<void> {
   if (!ENABLED) return
   if (inflight) return inflight // dedupe concurrent requests
   inflight = (async () => {
     set({ lastAttemptAt: Date.now() })
-    try {
-      const results = await Promise.all(URLS.map(fetchOffice))
-      const now = Date.now()
+    // Each office is its own request: one failing must not discard the others.
+    const [settled, declChanged] = await Promise.all([Promise.allSettled(URLS.map(fetchOffice)), fetchDeclarations()])
+    const now = Date.now()
+    const offices = { ...state.offices }
+    let anyOk = false, anyChanged = declChanged, retryAfter = 0, minDelay = 0
+    const errors: string[] = []
+    settled.forEach((r, i) => {
+      const u = URLS[i], body = bodies.get(u.url)
+      if (r.status === 'fulfilled') {
+        anyOk = true; anyChanged ||= r.value.changed; minDelay = Math.max(minDelay, r.value.minDelay)
+        offices[u.office] = { ok: true, error: null, lastOkAt: now, asOf: body?.as_of ?? null, races: body ? Object.keys(body.races).length : 0 }
+      } else {
+        const msg = r.reason instanceof Error ? r.reason.message : 'unknown'
+        retryAfter = Math.max(retryAfter, (r.reason as { retryAfter?: number })?.retryAfter ?? 0)
+        errors.push(`${u.office}: ${msg}`)
+        offices[u.office] = { ...offices[u.office], ok: false, error: msg }
+      }
+    })
+    if (anyOk) {
       failures = 0
-      if (results.some((r) => r.changed) || !state.snapshot || state.status !== 'ok') {
-        const snap = toSnapshot(URLS.map((u) => bodies.get(u.url)!), YEAR === 2024 ? 2024 : null)
-        diff(state.status === 'ok' ? state.snapshot : null, snap)
-        set({ status: 'ok', snapshot: snap, lastSuccessAt: now, error: null, stale: false })
+      const have = URLS.filter((u) => bodies.has(u.url))
+      if (anyChanged || !state.snapshot || state.status !== 'ok') {
+        const base = mergeSnapshots([toSnapshot(have.map((u) => bodies.get(u.url)!), YEAR === 2024 ? 2024 : null)], ['openamerica'])!
+        const snap = applyDeclarations(base, declItems)
+        const added = diffSnapshots(state.snapshot, snap, now, events)
+        if (added.length) {
+          events = mergeEvents(events, added)
+          try { localStorage.setItem(EVENTS_KEY, JSON.stringify(events)) } catch { /* quota */ }
+        }
+        set({ status: 'ok', snapshot: snap, lastSuccessAt: now, lastChangeAt: now, error: errors.join(' · ') || null, stale: false, offices, checks: state.checks + 1 })
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ at: now, snapshot: snap })) } catch { /* quota */ }
       } else {
-        set({ status: 'ok', lastSuccessAt: now, error: null, stale: false })
+        set({ status: 'ok', lastSuccessAt: now, error: errors.join(' · ') || null, stale: false, offices, checks: state.checks + 1 })
       }
-      // Provider's schedule: every 60 s while races exist and are not final (even before the first vote, so the
-      // first results show up within a minute); every 10 min only when no race exists yet, or once everything is final.
-      const snap = state.snapshot
-      const idle = !snap || snap.sourceState === 'final' || (snap.sourceState === 'waiting' && snap.races.length === 0)
-      nextDelay = Math.max(idle ? IDLE_MS : POLL_MS, ...results.map((r) => r.minDelay))
-    } catch (e) {
+      // The provider asks for a poll about once a minute while counting. We keep that pace for the whole night:
+      // states publish at very different hours (Alaska, Hawaii), so a slower "idle" pace would delay their first results.
+      nextDelay = Math.max(POLL_MS, minDelay)
+    } else {
       failures++
-      const ra = (e as { retryAfter?: number }).retryAfter ?? 0
-      nextDelay = Math.min(MAX_BACKOFF_MS, Math.max(ra, POLL_MS * 2 ** failures))
+      nextDelay = Math.min(MAX_BACKOFF_MS, Math.max(retryAfter, POLL_MS * 2 ** failures))
       set({
-        status: 'error',
-        error: e instanceof Error ? e.message : 'unknown',
-        stale: state.lastSuccessAt ? Date.now() - state.lastSuccessAt > STALE_AFTER_MS : false,
+        status: 'error', error: errors.join(' · ') || 'unknown', offices,
+        stale: state.lastSuccessAt ? now - state.lastSuccessAt > STALE_AFTER_MS : false,
       })
-    } finally {
-      inflight = null
     }
-  })()
+  })().finally(() => { inflight = null })
   return inflight
 }
 
@@ -152,7 +177,7 @@ let started = false
 /** The count has not started: keep the results source untouched and drop any older copy. */
 export function holdFeed() {
   if (started || !ENABLED) return
-  set({ status: 'not_started', snapshot: null, lastSuccessAt: null, lastAttemptAt: null, error: null, stale: false })
+  set({ status: 'not_started', snapshot: null, lastSuccessAt: null, lastAttemptAt: null, error: null, stale: false, lastChangeAt: null })
 }
 
 /** Called when the countdown reaches zero (or if it already had): from now on the sources are polled. */

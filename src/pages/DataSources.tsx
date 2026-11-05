@@ -121,6 +121,10 @@ export default function DataSources() {
       extra: <Row label={t('dsrc.attr')}>{t('src.ebc.terms')}</Row>,
     },
     {
+      id: 'decl', nameKey: 'src.decl.name', providesKey: 'src.decl.provides', cadenceKey: 'src.decl.cadence', natures: ['news'],
+      endpoints: ['/declarations.json'], last: <span className="text-muted">{t('src.onDemand')}</span>, links: [],
+    },
+    {
       id: 'ref', nameKey: 'src.ref.name', providesKey: 'src.ref.provides', cadenceKey: 'src.ref.cadence', natures: ['reference'], last: <span className="text-muted">{t('common.dash')}</span>,
       links: [{ href: 'https://www.senate.gov/', label: 'src.site' }, { href: 'https://www.census.gov/', label: 'src.site' }],
     },
@@ -129,7 +133,7 @@ export default function DataSources() {
   const natures: Nature[] = ['official', 'preliminary', 'certified', 'poll', 'news', 'reference']
   const where: [DictKey, DictKey][] = [
     ['where.votes', 'where.v.votes'], ['where.rank', 'where.v.rank'], ['where.house', 'where.v.house'], ['where.senate', 'where.v.senate'], ['where.seats', 'where.v.seats'],
-    ['where.countdown', 'where.v.countdown'], ['where.polls', 'where.v.polls'], ['where.news', 'where.v.news'], ['where.coverage', 'where.v.coverage'], ['where.offices', 'where.v.offices'],
+    ['where.countdown', 'where.v.countdown'], ['where.status', 'where.v.status'], ['where.history', 'where.v.history'], ['where.polls', 'where.v.polls'], ['where.news', 'where.v.news'], ['where.coverage', 'where.v.coverage'], ['where.offices', 'where.v.offices'],
   ]
 
   return (
@@ -179,6 +183,13 @@ export default function DataSources() {
             <tbody>{where.map(([a, b]) => <tr key={a} className="border-b border-line/60 align-top last:border-0"><td className="py-2.5 pr-4 font-medium">{t(a)}</td><td className="py-2.5 text-ink/80">{t(b)}</td></tr>)}</tbody>
           </table>
         </div>
+      </Section>
+
+      <Section title={t('srcx.title')}>
+        <p className="text-sm leading-relaxed text-ink/80">{t('srcx.lede')}</p>
+        <ul className="mt-4 space-y-3 text-sm leading-relaxed">
+          {(['srcx.oa', 'srcx.ap', 'srcx.cbs', 'srcx.oe', 'srcx.states', 'srcx.decl'] as const).map((k) => <li key={k} className="border-l-2 border-accent/50 pl-3 text-ink/85">{t(k)}</li>)}
+        </ul>
       </Section>
 
       <Section title={t('dsrc.cov')}>
